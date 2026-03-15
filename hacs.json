@@ -1,0 +1,6 @@
+{
+  "name": "Nodalia Media Player",
+  "content_in_root": false,
+  "filename": "dist/nodalia-media-player.js",
+  "render_readme": true
+}
