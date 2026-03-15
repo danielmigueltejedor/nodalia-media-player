@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "description": "Advanced Home Assistant media player card with a Mushroom-inspired design language",
   "type": "module",
-  "module": "dist/nodalia-media-player.js",
+  "module": "nodalia-media-player.js",
   "files": [
-    "dist",
+    "nodalia-media-player.js",
     "README.md",
     "hacs.json"
   ],

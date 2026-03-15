@@ -23,7 +23,27 @@ npm install
 npm run build
 ```
 
-El archivo generado sera `dist/nodalia-media-player.js`.
+Para probarlo ya con HACS, el artefacto que usa el repositorio es `nodalia-media-player.js` en la raiz.
+
+## Instalacion con HACS como repositorio personalizado
+
+1. En HACS ve a los tres puntos de la esquina superior derecha.
+2. Entra en `Custom repositories`.
+3. Añade este repositorio como categoria `Dashboard`.
+4. Instala `Nodalia Media Player`.
+5. Comprueba que HACS haya añadido el recurso:
+
+```text
+/hacsfiles/nodalia-media-player/nodalia-media-player.js
+```
+
+6. Usa la tarjeta en Lovelace:
+
+```yaml
+type: custom:nodalia-media-player
+entities:
+  - media_player.salon
+```
 
 ## Configuracion minima
 
@@ -103,4 +123,3 @@ Las acciones avanzadas se editan como JSON. Puedes usar estas variables en `serv
 - Vista mas rica de cola con mover arriba, siguiente y eliminar.
 - Editor visual mas completo para acciones y overrides por entidad.
 - Mas idiomas ademas de `es` y `en`.
-
