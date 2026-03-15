@@ -84,7 +84,7 @@ export class NodaliaMediaPlayer extends LitElement {
 
   private _config?: NormalizedConfig;
   private _selectedEntityId?: string;
-  private _detailsOpen = true;
+  private _detailsOpen = false;
   private _draftSeek?: number;
   private _draftVolume?: number;
   private _queueItems: QueueItemLike[] = [];
@@ -109,10 +109,11 @@ export class NodaliaMediaPlayer extends LitElement {
 
   public setConfig(config: LovelaceCardConfig): void {
     this._config = normalizeConfig(config as NodaliaMediaPlayerConfig);
+    this._detailsOpen = this._config.behavior.expanded_by_default;
   }
 
   public getCardSize(): number {
-    return this._config?.behavior.collapse_when_idle ? 4 : 6;
+    return this._detailsOpen ? 7 : 3;
   }
 
   protected updated(changedProperties: PropertyValues<this>): void {
@@ -196,15 +197,15 @@ export class NodaliaMediaPlayer extends LitElement {
     const active = this._activeEntry();
     if (
       !this._config?.queue.enabled ||
-      !active?.stateObj ||
-      !isSessionActive(active.stateObj)
+      !active?.playbackStateObj ||
+      !isSessionActive(active.playbackStateObj)
     ) {
       return "";
     }
     return [
-      active.entityId,
-      active.stateObj.state,
-      active.stateObj.attributes.media_content_id ?? "",
+      active.playbackEntityId,
+      active.playbackStateObj.state,
+      active.playbackStateObj.attributes.media_content_id ?? "",
       this._config.queue.limit,
     ].join("|");
   }
@@ -261,8 +262,8 @@ export class NodaliaMediaPlayer extends LitElement {
     if (
       !this.hass ||
       !this._config?.queue.enabled ||
-      !active?.stateObj ||
-      !isSessionActive(active.stateObj)
+      !active?.playbackStateObj ||
+      !isSessionActive(active.playbackStateObj)
     ) {
       this._queueItems = [];
       this._queueLoading = false;
@@ -278,10 +279,10 @@ export class NodaliaMediaPlayer extends LitElement {
     try {
       const items = await fetchQueueItems(
         this.hass,
-        active.entityId,
+        active.playbackEntityId,
         this._config.queue.limit,
       );
-      const currentId = String(active.stateObj.attributes.media_content_id ?? "");
+      const currentId = String(active.playbackStateObj.attributes.media_content_id ?? "");
       this._queueAvailable = true;
       this._queueItems = items.map((item) => ({
         ...item,
@@ -321,6 +322,22 @@ export class NodaliaMediaPlayer extends LitElement {
     return entry.config.hide_controls?.includes(control) ?? false;
   }
 
+  private _displayState(entry: ResolvedPlayerEntity): ResolvedPlayerEntity["stateObj"] {
+    return entry.playbackStateObj ?? entry.stateObj;
+  }
+
+  private _deviceState(entry: ResolvedPlayerEntity): ResolvedPlayerEntity["stateObj"] {
+    return entry.deviceStateObj ?? entry.stateObj;
+  }
+
+  private _sourceState(entry: ResolvedPlayerEntity): ResolvedPlayerEntity["stateObj"] {
+    return entry.sourceStateObj ?? this._deviceState(entry);
+  }
+
+  private _groupState(entry: ResolvedPlayerEntity): ResolvedPlayerEntity["stateObj"] {
+    return entry.groupStateObj ?? this._displayState(entry);
+  }
+
   private _selectEntity(entityId: string): void {
     this._selectedEntityId = entityId;
   }
@@ -330,11 +347,12 @@ export class NodaliaMediaPlayer extends LitElement {
   }
 
   private async _togglePower(entry: ResolvedPlayerEntity): Promise<void> {
-    if (!this.hass || !entry.stateObj) {
+    const deviceState = this._deviceState(entry);
+    if (!this.hass || !deviceState) {
       return;
     }
     const service =
-      entry.stateObj.state === "off" || entry.stateObj.state === "standby"
+      deviceState.state === "off" || deviceState.state === "standby"
         ? "turn_on"
         : "turn_off";
     await this.hass.callService("media_player", service, {
@@ -343,26 +361,27 @@ export class NodaliaMediaPlayer extends LitElement {
   }
 
   private async _togglePlayPause(entry: ResolvedPlayerEntity): Promise<void> {
-    if (!this.hass || !entry.stateObj) {
+    const playbackState = this._displayState(entry);
+    if (!this.hass || !playbackState) {
       return;
     }
 
-    if (entry.stateObj.state === "playing" && supportsFeature(entry.stateObj, FEATURE_PAUSE)) {
+    if (playbackState.state === "playing" && supportsFeature(playbackState, FEATURE_PAUSE)) {
       await this.hass.callService("media_player", "media_pause", {
-        entity_id: entry.entityId,
+        entity_id: entry.playbackEntityId,
       });
       return;
     }
 
-    if (supportsFeature(entry.stateObj, FEATURE_PLAY)) {
+    if (supportsFeature(playbackState, FEATURE_PLAY)) {
       await this.hass.callService("media_player", "media_play", {
-        entity_id: entry.entityId,
+        entity_id: entry.playbackEntityId,
       });
       return;
     }
 
     await this.hass.callService("media_player", "media_play_pause", {
-      entity_id: entry.entityId,
+      entity_id: entry.playbackEntityId,
     });
   }
 
@@ -371,7 +390,7 @@ export class NodaliaMediaPlayer extends LitElement {
       return;
     }
     await this.hass.callService("media_player", "media_previous_track", {
-      entity_id: entry.entityId,
+      entity_id: entry.playbackEntityId,
     });
   }
 
@@ -380,7 +399,7 @@ export class NodaliaMediaPlayer extends LitElement {
       return;
     }
     await this.hass.callService("media_player", "media_next_track", {
-      entity_id: entry.entityId,
+      entity_id: entry.playbackEntityId,
     });
   }
 
@@ -399,7 +418,7 @@ export class NodaliaMediaPlayer extends LitElement {
       return;
     }
     await this.hass.callService("media_player", "media_seek", {
-      entity_id: entry.entityId,
+      entity_id: entry.playbackEntityId,
       seek_position: seconds,
     });
   }
@@ -420,7 +439,7 @@ export class NodaliaMediaPlayer extends LitElement {
       return;
     }
     await this.hass.callService("media_player", "select_source", {
-      entity_id: entry.entityId,
+      entity_id: this._sourceState(entry)?.entity_id ?? entry.entityId,
       source,
     });
   }
@@ -429,10 +448,11 @@ export class NodaliaMediaPlayer extends LitElement {
     activeEntry: ResolvedPlayerEntity,
     memberId: string,
   ): Promise<void> {
-    if (!this.hass || !activeEntry.stateObj || memberId === activeEntry.entityId) {
+    const groupState = this._groupState(activeEntry);
+    if (!this.hass || !groupState || memberId === activeEntry.groupEntityId) {
       return;
     }
-    const groupMembers = normalizeGroupMembers(activeEntry.stateObj);
+    const groupMembers = normalizeGroupMembers(groupState);
     if (groupMembers.includes(memberId)) {
       await this.hass.callService("media_player", "unjoin", {
         entity_id: memberId,
@@ -440,17 +460,18 @@ export class NodaliaMediaPlayer extends LitElement {
       return;
     }
     await this.hass.callService("media_player", "join", {
-      entity_id: activeEntry.entityId,
+      entity_id: activeEntry.groupEntityId,
       group_members: [memberId],
     });
   }
 
   private async _ungroupAll(activeEntry: ResolvedPlayerEntity): Promise<void> {
-    if (!this.hass || !activeEntry.stateObj) {
+    const groupState = this._groupState(activeEntry);
+    if (!this.hass || !groupState) {
       return;
     }
-    const members = normalizeGroupMembers(activeEntry.stateObj).filter(
-      (memberId) => memberId !== activeEntry.entityId,
+    const members = normalizeGroupMembers(groupState).filter(
+      (memberId) => memberId !== activeEntry.groupEntityId,
     );
     await Promise.all(
       members.map((memberId) =>
@@ -469,9 +490,9 @@ export class NodaliaMediaPlayer extends LitElement {
     if (!domain || !service) {
       return;
     }
-    const entity = entry.stateObj;
+    const entity = this._displayState(entry);
     const data = interpolateTemplate(
-      entry.config.favorite_service_data ?? { entity_id: entry.entityId },
+      entry.config.favorite_service_data ?? { entity_id: entry.playbackEntityId },
       placeholderContext(entity),
     );
     await this.hass.callService(domain, service, data as Record<string, unknown>);
@@ -488,7 +509,7 @@ export class NodaliaMediaPlayer extends LitElement {
     const entityId =
       shortcut.entity && shortcut.entity !== "current"
         ? shortcut.entity
-        : activeEntry.entityId;
+        : activeEntry.playbackEntityId;
     const entity = this.hass.states[entityId] ?? activeEntry.stateObj;
     const context = placeholderContext(entity);
 
@@ -558,19 +579,165 @@ export class NodaliaMediaPlayer extends LitElement {
     `;
   }
 
+  private _renderHeroProgress(active: ResolvedPlayerEntity) {
+    const playbackState = this._displayState(active);
+    if (!playbackState) {
+      return nothing;
+    }
+    const duration = Number(playbackState.attributes.media_duration ?? 0);
+    if (!duration) {
+      return nothing;
+    }
+    const current = clamp(
+      currentMediaPosition(playbackState, this._now),
+      0,
+      duration,
+    );
+    const width = `${(current / duration) * 100}%`;
+    return html`
+      <div class="hero-progress">
+        <div class="hero-progress-track">
+          <div class="hero-progress-fill" style=${styleMap({ width })}></div>
+        </div>
+        ${this._config?.behavior.show_timestamps
+          ? html`
+              <div class="hero-times">
+                <span>${formatTime(current)}</span>
+                <span>${formatTime(duration)}</span>
+              </div>
+            `
+          : nothing}
+      </div>
+    `;
+  }
+
+  private _renderHeroTransport(active: ResolvedPlayerEntity) {
+    const playbackState = this._displayState(active);
+    const deviceState = this._deviceState(active);
+    if (!playbackState && !deviceState) {
+      return nothing;
+    }
+
+    const canPower =
+      !this._isHidden(active, "power") &&
+      !!deviceState &&
+      (supportsFeature(deviceState, FEATURE_TURN_ON) ||
+        supportsFeature(deviceState, FEATURE_TURN_OFF));
+    const canPrevious =
+      !this._isHidden(active, "previous") &&
+      !!playbackState &&
+      supportsFeature(playbackState, FEATURE_PREVIOUS_TRACK);
+    const canNext =
+      !this._isHidden(active, "next") &&
+      !!playbackState &&
+      supportsFeature(playbackState, FEATURE_NEXT_TRACK);
+    const canMute =
+      !this._isHidden(active, "mute") &&
+      !!active.volumeStateObj &&
+      supportsFeature(active.volumeStateObj, FEATURE_VOLUME_MUTE);
+
+    const playIcon = playbackState?.state === "playing" ? "mdi:pause" : "mdi:play";
+    const playLabel =
+      playbackState?.state === "playing"
+        ? this._t("common.pause")
+        : this._t("common.play");
+
+    return html`
+      <div class="hero-bottom">
+        <div class="hero-controls">
+          ${canPower
+            ? this._renderIconButton(
+                deviceState?.state === "off" || deviceState?.state === "standby"
+                  ? "mdi:power"
+                  : "mdi:power-standby",
+                this._t("common.power"),
+                () => this._togglePower(active),
+                { subtle: true, small: true },
+              )
+            : nothing}
+          ${canPrevious
+            ? this._renderIconButton(
+                "mdi:skip-previous",
+                this._t("common.previous"),
+                () => this._previousTrack(active),
+                { subtle: true, small: true },
+              )
+            : nothing}
+          ${playbackState
+            ? this._renderIconButton(
+                playIcon,
+                playLabel,
+                () => this._togglePlayPause(active),
+                { primary: true, "play-button": true },
+              )
+            : nothing}
+          ${canNext
+            ? this._renderIconButton(
+                "mdi:skip-next",
+                this._t("common.next"),
+                () => this._nextTrack(active),
+                { subtle: true, small: true },
+              )
+            : nothing}
+          ${canMute
+            ? this._renderIconButton(
+                active.volumeStateObj?.attributes.is_volume_muted
+                  ? "mdi:volume-off"
+                  : "mdi:volume-high",
+                active.volumeStateObj?.attributes.is_volume_muted
+                  ? this._t("common.unmute")
+                  : this._t("common.mute"),
+                () => this._toggleMute(active),
+                { subtle: true, small: true },
+              )
+            : nothing}
+        </div>
+        <div class="hero-actions-inline">
+          ${active.config.favorite_service
+            ? this._renderIconButton(
+                "mdi:heart-outline",
+                this._t("common.favorite"),
+                () => this._triggerFavorite(active),
+                { subtle: true, small: true },
+              )
+            : nothing}
+          ${this._renderIconButton(
+            this._detailsOpen ? "mdi:chevron-up" : "mdi:chevron-down",
+            this._t("common.toggleDetails"),
+            () => {
+              this._detailsOpen = !this._detailsOpen;
+            },
+            { subtle: true, small: true },
+          )}
+          ${this._renderIconButton(
+            "mdi:dots-horizontal",
+            this._t("common.moreInfo"),
+            () => this._openMoreInfo(active.playbackEntityId),
+            { subtle: true, small: true },
+          )}
+        </div>
+      </div>
+    `;
+  }
+
   private _renderHero(active: ResolvedPlayerEntity, collapsed: boolean) {
-    const artwork = artworkForEntity(active.stateObj, active.config.image);
-    const title = active.stateObj
-      ? mediaTitle(active.stateObj)
+    const displayState = this._displayState(active);
+    const deviceState = this._deviceState(active);
+    const artwork = artworkForEntity(displayState, active.config.image);
+    const title = displayState
+      ? mediaTitle(displayState)
       : active.config.name ?? active.entityId;
-    const subtitle = active.stateObj
-      ? mediaSubtitle(active.stateObj) || friendlyName(active.stateObj, active.config.name)
+    const subtitle = displayState
+      ? mediaSubtitle(displayState) || friendlyName(displayState, active.config.name)
       : this._t("common.unavailable");
-    const supporting = active.stateObj
-      ? mediaSupportingText(active.stateObj) || friendlyName(active.stateObj, active.config.name)
+    const supporting = displayState
+      ? mediaSupportingText(displayState) ||
+        friendlyName(deviceState, active.config.name)
       : active.entityId;
-    const stateClass = `state-${active.stateObj?.state ?? "unknown"}`;
+    const stateClass = `state-${displayState?.state ?? "unknown"}`;
     const blurClass = this._config?.appearance.blur_background ? "blur" : "";
+    const entityLabel =
+      active.config.name ?? friendlyName(deviceState, active.entityId);
 
     return html`
       <section class="hero">
@@ -583,62 +750,59 @@ export class NodaliaMediaPlayer extends LitElement {
             `
           : nothing}
         <div class="hero-veil"></div>
-
-        <button
-          class="artwork-button"
-          title=${this._t("common.moreInfo")}
-          @click=${() => this._openMoreInfo(active.entityId)}
-        >
+        <div class="hero-ghost">
           ${artwork
-            ? html`
-                <img
-                  src=${artwork}
-                  alt=${title}
-                  style=${styleMap({
-                    objectFit: this._config?.appearance.artwork_fit ?? "cover",
-                  })}
-                />
-              `
+            ? html`<img class="hero-ghost-artwork" src=${artwork} alt="" />`
             : html`
-                <div class="artwork-placeholder">
-                  <ha-icon .icon=${iconForEntity(active.stateObj, active.config.icon)}></ha-icon>
-                </div>
+                <ha-icon
+                  class="hero-ghost-icon"
+                  .icon=${iconForEntity(displayState, active.config.icon)}
+                ></ha-icon>
               `}
-        </button>
-
-        <div class="hero-copy">
-          <div class="hero-topline">
-            <span class=${classMap({ "hero-chip": true, [stateClass]: true })}>
-              ${this._stateLabel(active)}
-            </span>
-            <span class="hero-chip">${active.config.name ?? friendlyName(active.stateObj, active.entityId)}</span>
-          </div>
-          <h2 class="hero-title">${title}</h2>
-          <p class="hero-subtitle">${subtitle}</p>
-          <p class="hero-supporting">${supporting}</p>
         </div>
+        <div class="hero-layout">
+          <button
+            class="artwork-button"
+            title=${this._t("common.moreInfo")}
+            @click=${() => this._openMoreInfo(active.playbackEntityId)}
+          >
+            ${artwork
+              ? html`
+                  <img
+                    src=${artwork}
+                    alt=${title}
+                    style=${styleMap({
+                      objectFit: this._config?.appearance.artwork_fit ?? "cover",
+                    })}
+                  />
+                `
+              : html`
+                  <div class="artwork-placeholder">
+                    <ha-icon .icon=${iconForEntity(displayState, active.config.icon)}></ha-icon>
+                  </div>
+                `}
+          </button>
 
-        <div class="hero-actions">
-          ${active.config.favorite_service
-            ? this._renderIconButton(
-                "mdi:heart-outline",
-                this._t("common.favorite"),
-                () => this._triggerFavorite(active),
-              )
-            : nothing}
-          ${this._renderIconButton(
-            this._detailsOpen ? "mdi:chevron-up" : "mdi:chevron-down",
-            this._t("common.toggleDetails"),
-            () => {
-              this._detailsOpen = !this._detailsOpen;
-            },
-            { "details-toggle": true },
-          )}
-          ${this._renderIconButton(
-            "mdi:dots-horizontal",
-            this._t("common.moreInfo"),
-            () => this._openMoreInfo(active.entityId),
-          )}
+          <div class="hero-copy">
+            <div class="hero-topline">
+              <span class=${classMap({ "hero-chip": true, [stateClass]: true })}>
+                ${this._stateLabel(active)}
+              </span>
+              <span class="hero-chip">${entityLabel}</span>
+              ${active.displayOrigin === "music_assistant"
+                ? html`<span class="hero-chip accent">${this._t("common.musicAssistant")}</span>`
+                : nothing}
+            </div>
+            <div class="hero-heading">
+              <div class="hero-heading-copy">
+                <h2 class="hero-title">${title}</h2>
+                <p class="hero-subtitle">${subtitle}</p>
+                <p class="hero-supporting">${supporting}</p>
+              </div>
+            </div>
+            ${this._renderHeroProgress(active)}
+            ${this._renderHeroTransport(active)}
+          </div>
         </div>
       </section>
     `;
@@ -652,7 +816,9 @@ export class NodaliaMediaPlayer extends LitElement {
     return html`
       <div class="entity-row">
         ${entries.map((entry) => {
-          const label = entry.config.name ?? friendlyName(entry.stateObj, entry.entityId);
+          const label =
+            entry.config.name ??
+            friendlyName(entry.deviceStateObj ?? entry.stateObj, entry.entityId);
           return html`
             <button
               class=${classMap({
@@ -673,21 +839,25 @@ export class NodaliaMediaPlayer extends LitElement {
   }
 
   private _renderProgress(active: ResolvedPlayerEntity) {
+    if (!this._detailsOpen) {
+      return nothing;
+    }
+    const playbackState = this._displayState(active);
     if (
-      !active.stateObj ||
+      !playbackState ||
       this._isHidden(active, "seek") ||
       !this._config?.behavior.enable_seek ||
-      !supportsFeature(active.stateObj, FEATURE_SEEK)
+      !supportsFeature(playbackState, FEATURE_SEEK)
     ) {
       return nothing;
     }
 
-    const duration = Number(active.stateObj.attributes.media_duration ?? 0);
+    const duration = Number(playbackState.attributes.media_duration ?? 0);
     if (!duration) {
       return nothing;
     }
     const current = clamp(
-      this._draftSeek ?? currentMediaPosition(active.stateObj, this._now),
+      this._draftSeek ?? currentMediaPosition(playbackState, this._now),
       0,
       duration,
     );
@@ -811,6 +981,9 @@ export class NodaliaMediaPlayer extends LitElement {
   }
 
   private _renderVolume(active: ResolvedPlayerEntity) {
+    if (!this._detailsOpen) {
+      return nothing;
+    }
     const volumeEntity = active.volumeStateObj;
     if (
       !this._config?.behavior.show_volume ||
@@ -855,12 +1028,13 @@ export class NodaliaMediaPlayer extends LitElement {
   }
 
   private _renderSources(active: ResolvedPlayerEntity) {
-    const sources = active.stateObj?.attributes.source_list;
+    const sourceState = this._sourceState(active);
+    const sources = sourceState?.attributes.source_list;
     if (
       !this._config?.behavior.show_sources ||
-      !active.stateObj ||
+      !sourceState ||
       this._isHidden(active, "source") ||
-      !supportsFeature(active.stateObj, FEATURE_SELECT_SOURCE) ||
+      !supportsFeature(sourceState, FEATURE_SELECT_SOURCE) ||
       !Array.isArray(sources) ||
       !sources.length
     ) {
@@ -872,7 +1046,7 @@ export class NodaliaMediaPlayer extends LitElement {
         <div class="section-header">
           <div>
             <h3>${this._t("common.sources")}</h3>
-            <p>${this._t("common.currentSource")}: ${String(active.stateObj.attributes.source ?? "-")}</p>
+            <p>${this._t("common.currentSource")}: ${String(sourceState.attributes.source ?? "-")}</p>
           </div>
         </div>
         <div class="source-row">
@@ -881,7 +1055,7 @@ export class NodaliaMediaPlayer extends LitElement {
               <button
                 class=${classMap({
                   "source-chip": true,
-                  selected: source === active.stateObj?.attributes.source,
+                  selected: source === sourceState.attributes.source,
                 })}
                 @click=${() => this._selectSource(active, source)}
               >
@@ -895,8 +1069,11 @@ export class NodaliaMediaPlayer extends LitElement {
   }
 
   private _renderShortcuts(active: ResolvedPlayerEntity) {
+    if (!this._detailsOpen) {
+      return nothing;
+    }
     const shortcuts = (this._config?.actions ?? []).filter((shortcut) =>
-      visibilityMatches(shortcut.visibility, active.stateObj),
+      visibilityMatches(shortcut.visibility, this._displayState(active)),
     );
     if (!shortcuts.length) {
       return nothing;
@@ -929,17 +1106,18 @@ export class NodaliaMediaPlayer extends LitElement {
   }
 
   private _renderGroupControls(entries: ResolvedPlayerEntity[], active: ResolvedPlayerEntity) {
+    const groupState = this._groupState(active);
     if (
       !this._config?.behavior.show_group_controls ||
-      !active.stateObj ||
+      !groupState ||
       entries.length <= 1
     ) {
       return nothing;
     }
 
-    const groupedPlayers = normalizeGroupMembers(active.stateObj);
+    const groupedPlayers = normalizeGroupMembers(groupState);
     const canGroup =
-      supportsFeature(active.stateObj, FEATURE_GROUPING) || groupedPlayers.length > 1;
+      supportsFeature(groupState, FEATURE_GROUPING) || groupedPlayers.length > 1;
     if (!canGroup) {
       return nothing;
     }
@@ -1013,7 +1191,7 @@ export class NodaliaMediaPlayer extends LitElement {
                     if (!this.hass) {
                       return;
                     }
-                    await clearQueue(this.hass, active.entityId);
+                    await clearQueue(this.hass, active.playbackEntityId);
                     await this._refreshQueue();
                   }}
                 >
@@ -1041,7 +1219,7 @@ export class NodaliaMediaPlayer extends LitElement {
                       @click=${() =>
                         this.hass &&
                         item.queue_item_id &&
-                        playQueueItem(this.hass, active.entityId, item.queue_item_id)}
+                        playQueueItem(this.hass, active.playbackEntityId, item.queue_item_id)}
                     >
                       <div class="queue-thumb">
                         ${queueItemImage(item)
@@ -1064,7 +1242,7 @@ export class NodaliaMediaPlayer extends LitElement {
                           async () => {
                             await removeQueueItem(
                               this.hass!,
-                              active.entityId,
+                              active.playbackEntityId,
                               item.queue_item_id!,
                             );
                             await this._refreshQueue();
@@ -1081,34 +1259,47 @@ export class NodaliaMediaPlayer extends LitElement {
   }
 
   private _renderDetails(active: ResolvedPlayerEntity) {
-    if (!this._config?.behavior.show_details || !this._detailsOpen || !active.stateObj) {
+    const displayState = this._displayState(active);
+    const deviceState = this._deviceState(active);
+    if (!this._config?.behavior.show_details || !this._detailsOpen || !displayState) {
       return nothing;
     }
 
     const details = [
+      {
+        label: this._t("common.device"),
+        value: active.config.name ?? friendlyName(deviceState, active.entityId),
+      },
+      {
+        label: this._t("common.sourceEntity"),
+        value:
+          active.displayOrigin === "music_assistant"
+            ? this._t("common.musicAssistant")
+            : this._t("common.device"),
+      },
       {
         label: this._t("common.state"),
         value: this._stateLabel(active),
       },
       {
         label: this._t("common.artist"),
-        value: String(active.stateObj.attributes.media_artist ?? ""),
+        value: String(displayState.attributes.media_artist ?? ""),
       },
       {
         label: this._t("common.album"),
-        value: String(active.stateObj.attributes.media_album_name ?? ""),
+        value: String(displayState.attributes.media_album_name ?? ""),
       },
       {
         label: this._t("common.currentSource"),
-        value: String(active.stateObj.attributes.source ?? ""),
+        value: String(this._sourceState(active)?.attributes.source ?? ""),
       },
       {
         label: this._t("common.app"),
-        value: String(active.stateObj.attributes.app_name ?? ""),
+        value: String(displayState.attributes.app_name ?? ""),
       },
       {
         label: this._t("common.soundMode"),
-        value: String(active.stateObj.attributes.sound_mode ?? ""),
+        value: String(this._sourceState(active)?.attributes.sound_mode ?? ""),
       },
     ].filter((item) => item.value);
 
@@ -1176,7 +1367,6 @@ export class NodaliaMediaPlayer extends LitElement {
           ${this._renderHero(active, collapsed)}
           ${this._renderEntityChips(entries, active)}
           ${this._renderProgress(active)}
-          ${this._renderTransport(active)}
           ${this._renderVolume(active)}
           ${this._renderShortcuts(active)}
           ${collapsed || !this._detailsOpen ? nothing : this._renderSources(active)}

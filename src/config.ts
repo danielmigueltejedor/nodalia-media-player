@@ -24,6 +24,8 @@ export interface PlayerEntityConfig {
   icon?: string;
   image?: string;
   volume_entity?: string;
+  music_assistant_entity?: string;
+  prefer_music_assistant?: boolean;
   accent_color?: string;
   favorite_service?: string;
   favorite_service_data?: Record<string, unknown>;
@@ -53,6 +55,7 @@ export interface AppearanceConfig {
 export interface BehaviorConfig {
   auto_select_active?: boolean;
   collapse_when_idle?: boolean;
+  expanded_by_default?: boolean;
   show_timestamps?: boolean;
   show_details?: boolean;
   show_sources?: boolean;
@@ -97,6 +100,7 @@ export const DEFAULT_APPEARANCE: Required<AppearanceConfig> = {
 export const DEFAULT_BEHAVIOR: Required<BehaviorConfig> = {
   auto_select_active: true,
   collapse_when_idle: false,
+  expanded_by_default: false,
   show_timestamps: true,
   show_details: true,
   show_sources: true,

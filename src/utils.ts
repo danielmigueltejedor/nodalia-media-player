@@ -18,6 +18,14 @@ export interface ResolvedPlayerEntity {
   config: PlayerEntityConfig;
   entityId: string;
   stateObj?: HassEntity;
+  deviceStateObj?: HassEntity;
+  musicAssistantStateObj?: HassEntity;
+  playbackStateObj?: HassEntity;
+  playbackEntityId: string;
+  sourceStateObj?: HassEntity;
+  groupStateObj?: HassEntity;
+  groupEntityId: string;
+  displayOrigin: "entity" | "music_assistant";
   volumeStateObj?: HassEntity;
 }
 
@@ -75,14 +83,123 @@ export function resolveEntries(
   hass: HomeAssistant | undefined,
   entities: PlayerEntityConfig[],
 ): ResolvedPlayerEntity[] {
-  return entities.map((config) => ({
-    config,
-    entityId: config.entity,
-    stateObj: hass?.states[config.entity],
-    volumeStateObj: config.volume_entity
-      ? hass?.states[config.volume_entity]
-      : hass?.states[config.entity],
-  }));
+  return entities.map((config) => {
+    const deviceStateObj = hass?.states[config.entity];
+    const musicAssistantStateObj = config.music_assistant_entity
+      ? hass?.states[config.music_assistant_entity]
+      : undefined;
+    const preferredCompanion = config.prefer_music_assistant ?? true;
+    const stateObj = chooseDisplayState(
+      deviceStateObj,
+      musicAssistantStateObj,
+      preferredCompanion,
+    );
+    const displayOrigin =
+      stateObj && musicAssistantStateObj && stateObj.entity_id === musicAssistantStateObj.entity_id
+        ? "music_assistant"
+        : "entity";
+    const playbackStateObj = stateObj ?? deviceStateObj ?? musicAssistantStateObj;
+    const playbackEntityId =
+      playbackStateObj?.entity_id ??
+      config.music_assistant_entity ??
+      config.entity;
+    const sourceStateObj = deviceStateObj ?? playbackStateObj;
+    const groupStateObj = pickGroupingState(
+      playbackStateObj,
+      musicAssistantStateObj,
+      deviceStateObj,
+    );
+
+    return {
+      config,
+      entityId: config.entity,
+      stateObj,
+      deviceStateObj,
+      musicAssistantStateObj,
+      playbackStateObj,
+      playbackEntityId,
+      sourceStateObj,
+      groupStateObj,
+      groupEntityId: groupStateObj?.entity_id ?? playbackEntityId,
+      displayOrigin,
+      volumeStateObj: config.volume_entity
+        ? hass?.states[config.volume_entity]
+        : deviceStateObj ?? playbackStateObj,
+    };
+  });
+}
+
+function hasUsableMedia(entity?: HassEntity): boolean {
+  return Boolean(
+    entity?.attributes.media_title ||
+      entity?.attributes.media_content_id ||
+      entity?.attributes.entity_picture ||
+      entity?.attributes.entity_picture_local,
+  );
+}
+
+function displayScore(entity: HassEntity | undefined, preferred = false): number {
+  if (!entity) {
+    return -1;
+  }
+  let score = 0;
+  if (isSessionActive(entity)) {
+    score += 100;
+  }
+  if (entity.state === "playing") {
+    score += 30;
+  }
+  if (hasUsableMedia(entity)) {
+    score += 18;
+  }
+  if (preferred) {
+    score += 5;
+  }
+  return score;
+}
+
+function chooseDisplayState(
+  deviceStateObj?: HassEntity,
+  musicAssistantStateObj?: HassEntity,
+  preferredCompanion = true,
+): HassEntity | undefined {
+  if (!musicAssistantStateObj) {
+    return deviceStateObj;
+  }
+  if (!deviceStateObj) {
+    return musicAssistantStateObj;
+  }
+
+  const deviceActive = isSessionActive(deviceStateObj);
+  const companionActive = isSessionActive(musicAssistantStateObj);
+
+  if (!deviceActive && !companionActive) {
+    if (
+      deviceStateObj.state === "unavailable" &&
+      musicAssistantStateObj.state !== "unavailable"
+    ) {
+      return musicAssistantStateObj;
+    }
+    return deviceStateObj;
+  }
+
+  return displayScore(musicAssistantStateObj, preferredCompanion) >
+    displayScore(deviceStateObj)
+    ? musicAssistantStateObj
+    : deviceStateObj;
+}
+
+function pickGroupingState(
+  playbackStateObj?: HassEntity,
+  musicAssistantStateObj?: HassEntity,
+  deviceStateObj?: HassEntity,
+): HassEntity | undefined {
+  const candidates = [playbackStateObj, musicAssistantStateObj, deviceStateObj];
+  return candidates.find(
+    (entity) =>
+      supportsFeature(entity, FEATURE_GROUPING) ||
+      Array.isArray(entity?.attributes.group_members),
+  );
 }
 
 export function isPlaying(entity?: HassEntity): boolean {
@@ -198,7 +315,14 @@ export function parseEntityEditorText(value: string): PlayerEntityConfig[] {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const [entity, name, icon, volume_entity, accent_color] = line
+      const [
+        entity,
+        name,
+        icon,
+        volume_entity,
+        maybeMusicAssistantOrColor,
+        maybeColor,
+      ] = line
         .split("|")
         .map((item) => item.trim());
       const result: PlayerEntityConfig = { entity };
@@ -211,8 +335,15 @@ export function parseEntityEditorText(value: string): PlayerEntityConfig[] {
       if (volume_entity) {
         result.volume_entity = volume_entity;
       }
-      if (accent_color) {
-        result.accent_color = accent_color;
+      if (maybeColor) {
+        result.music_assistant_entity = maybeMusicAssistantOrColor;
+        result.accent_color = maybeColor;
+      } else if (maybeMusicAssistantOrColor) {
+        if (/^[a-z_]+\.[a-zA-Z0-9_]+$/.test(maybeMusicAssistantOrColor)) {
+          result.music_assistant_entity = maybeMusicAssistantOrColor;
+        } else {
+          result.accent_color = maybeMusicAssistantOrColor;
+        }
       }
       return result;
     })
@@ -227,8 +358,13 @@ export function serializeEntityEditorText(entities: PlayerEntityConfig[]): strin
         entity.name ?? "",
         entity.icon ?? "",
         entity.volume_entity ?? "",
-        entity.accent_color ?? "",
       ];
+      if (entity.music_assistant_entity || entity.accent_color) {
+        parts.push(entity.music_assistant_entity ?? "");
+      }
+      if (entity.accent_color) {
+        parts.push(entity.accent_color);
+      }
       while (parts.length > 1 && !parts[parts.length - 1]) {
         parts.pop();
       }

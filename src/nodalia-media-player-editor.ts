@@ -301,6 +301,18 @@ export class NodaliaMediaPlayerEditor extends LitElement {
             <label class="toggle">
               <input
                 type="checkbox"
+                .checked=${this._config.behavior.expanded_by_default}
+                @change=${(event: Event) =>
+                  this._updateBehavior(
+                    "expanded_by_default",
+                    (event.currentTarget as HTMLInputElement).checked,
+                  )}
+              />
+              <span>${this._t("editor.showExpandedByDefault")}</span>
+            </label>
+            <label class="toggle">
+              <input
+                type="checkbox"
                 .checked=${this._config.behavior.show_timestamps}
                 @change=${(event: Event) =>
                   this._updateBehavior(

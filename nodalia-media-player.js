@@ -70,6 +70,9 @@ const TRANSLATIONS = {
       groupedPlayers: "Reproductores agrupados",
       queueSoon: "Siguiente en cola",
       favorite: "Favorito",
+      musicAssistant: "Music Assistant",
+      device: "Dispositivo",
+      sourceEntity: "Entidad de reproduccion",
       loading: "Cargando...",
       name: "Nombre",
       card: "Tarjeta",
@@ -82,7 +85,7 @@ const TRANSLATIONS = {
       title: "Nodalia Media Player",
       players: "Reproductores",
       playersHint:
-        "Una entidad por linea. Formato opcional: entidad | nombre | icono | volumen_entidad | color.",
+        "Una entidad por linea. Formato opcional: entidad | nombre | icono | volumen_entidad | entidad_ma | color.",
       name: "Nombre de la tarjeta",
       language: "Idioma",
       languageAuto: "Automatico",
@@ -98,6 +101,7 @@ const TRANSLATIONS = {
       showVolume: "Mostrar volumen",
       showSources: "Mostrar fuentes",
       showGroupControls: "Mostrar agrupacion rapida",
+      showExpandedByDefault: "Abrir detalles por defecto",
       showDetails: "Mostrar seccion de detalles",
       enableSeek: "Permitir seek",
       queueEnabled: "Mostrar cola si mass_queue esta disponible",
@@ -156,6 +160,9 @@ const TRANSLATIONS = {
       groupedPlayers: "Grouped players",
       queueSoon: "Up next",
       favorite: "Favorite",
+      musicAssistant: "Music Assistant",
+      device: "Device",
+      sourceEntity: "Playback entity",
       loading: "Loading...",
       name: "Name",
       card: "Card",
@@ -168,7 +175,7 @@ const TRANSLATIONS = {
       title: "Nodalia Media Player",
       players: "Players",
       playersHint:
-        "One entity per line. Optional format: entity | name | icon | volume_entity | color.",
+        "One entity per line. Optional format: entity | name | icon | volume_entity | ma_entity | color.",
       name: "Card name",
       language: "Language",
       languageAuto: "Automatic",
@@ -184,6 +191,7 @@ const TRANSLATIONS = {
       showVolume: "Show volume",
       showSources: "Show sources",
       showGroupControls: "Show quick grouping",
+      showExpandedByDefault: "Open details by default",
       showDetails: "Show details section",
       enableSeek: "Allow seek",
       queueEnabled: "Show queue if mass_queue is available",
@@ -211,6 +219,7 @@ const DEFAULT_APPEARANCE = {
 const DEFAULT_BEHAVIOR = {
   auto_select_active: true,
   collapse_when_idle: false,
+  expanded_by_default: false,
   show_timestamps: true,
   show_details: true,
   show_sources: true,
@@ -333,15 +342,126 @@ function buildStubConfig(entityId) {
 }
 
 function resolveEntries(hass, entities) {
-  return entities.map((config) => ({
-    config,
-    entityId: config.entity,
-    stateObj: hass && hass.states ? hass.states[config.entity] : undefined,
-    volumeStateObj:
-      hass && hass.states
-        ? hass.states[config.volume_entity || config.entity]
-        : undefined,
-  }));
+  return entities.map((config) => {
+    const deviceStateObj = hass && hass.states ? hass.states[config.entity] : undefined;
+    const musicAssistantStateObj =
+      hass && hass.states && config.music_assistant_entity
+        ? hass.states[config.music_assistant_entity]
+        : undefined;
+    const preferredCompanion =
+      typeof config.prefer_music_assistant === "boolean"
+        ? config.prefer_music_assistant
+        : true;
+    const stateObj = chooseDisplayState(
+      deviceStateObj,
+      musicAssistantStateObj,
+      preferredCompanion,
+    );
+    const displayOrigin =
+      stateObj &&
+      musicAssistantStateObj &&
+      stateObj.entity_id === musicAssistantStateObj.entity_id
+        ? "music_assistant"
+        : "entity";
+    const playbackStateObj = stateObj || deviceStateObj || musicAssistantStateObj;
+    const playbackEntityId =
+      (playbackStateObj && playbackStateObj.entity_id) ||
+      config.music_assistant_entity ||
+      config.entity;
+    const sourceStateObj = deviceStateObj || playbackStateObj;
+    const groupStateObj = pickGroupingState(
+      playbackStateObj,
+      musicAssistantStateObj,
+      deviceStateObj,
+    );
+
+    return {
+      config,
+      entityId: config.entity,
+      stateObj,
+      deviceStateObj,
+      musicAssistantStateObj,
+      playbackStateObj,
+      playbackEntityId,
+      sourceStateObj,
+      groupStateObj,
+      groupEntityId:
+        (groupStateObj && groupStateObj.entity_id) || playbackEntityId,
+      displayOrigin,
+      volumeStateObj:
+        hass && hass.states
+          ? hass.states[config.volume_entity || config.entity] ||
+            deviceStateObj ||
+            playbackStateObj
+          : undefined,
+    };
+  });
+}
+
+function hasUsableMedia(entity) {
+  return Boolean(
+    entity &&
+      entity.attributes &&
+      (entity.attributes.media_title ||
+        entity.attributes.media_content_id ||
+        entity.attributes.entity_picture ||
+        entity.attributes.entity_picture_local),
+  );
+}
+
+function displayScore(entity, preferred = false) {
+  if (!entity) {
+    return -1;
+  }
+  let score = 0;
+  if (isSessionActive(entity)) {
+    score += 100;
+  }
+  if (entity.state === "playing") {
+    score += 30;
+  }
+  if (hasUsableMedia(entity)) {
+    score += 18;
+  }
+  if (preferred) {
+    score += 5;
+  }
+  return score;
+}
+
+function chooseDisplayState(deviceStateObj, musicAssistantStateObj, preferredCompanion = true) {
+  if (!musicAssistantStateObj) {
+    return deviceStateObj;
+  }
+  if (!deviceStateObj) {
+    return musicAssistantStateObj;
+  }
+
+  const deviceActive = isSessionActive(deviceStateObj);
+  const companionActive = isSessionActive(musicAssistantStateObj);
+
+  if (!deviceActive && !companionActive) {
+    if (
+      deviceStateObj.state === "unavailable" &&
+      musicAssistantStateObj.state !== "unavailable"
+    ) {
+      return musicAssistantStateObj;
+    }
+    return deviceStateObj;
+  }
+
+  return displayScore(musicAssistantStateObj, preferredCompanion) >
+    displayScore(deviceStateObj)
+    ? musicAssistantStateObj
+    : deviceStateObj;
+}
+
+function pickGroupingState(playbackStateObj, musicAssistantStateObj, deviceStateObj) {
+  return [playbackStateObj, musicAssistantStateObj, deviceStateObj].find(
+    (entity) =>
+      supportsFeature(entity, FEATURE_GROUPING) ||
+      Array.isArray(entity && entity.attributes && entity.attributes.group_members),
+  );
 }
 
 function friendlyName(entity, fallback) {
@@ -462,7 +582,7 @@ function parseEntityEditorText(value) {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
-      const [entity, name, icon, volume_entity, accent_color] = line
+      const [entity, name, icon, volume_entity, maybeMusicAssistantOrColor, maybeColor] = line
         .split("|")
         .map((item) => item.trim());
       const result = { entity };
@@ -475,8 +595,15 @@ function parseEntityEditorText(value) {
       if (volume_entity) {
         result.volume_entity = volume_entity;
       }
-      if (accent_color) {
-        result.accent_color = accent_color;
+      if (maybeColor) {
+        result.music_assistant_entity = maybeMusicAssistantOrColor;
+        result.accent_color = maybeColor;
+      } else if (maybeMusicAssistantOrColor) {
+        if (/^[a-z_]+\.[a-zA-Z0-9_]+$/.test(maybeMusicAssistantOrColor)) {
+          result.music_assistant_entity = maybeMusicAssistantOrColor;
+        } else {
+          result.accent_color = maybeMusicAssistantOrColor;
+        }
       }
       return result;
     })
@@ -486,13 +613,13 @@ function parseEntityEditorText(value) {
 function serializeEntityEditorText(entities) {
   return entities
     .map((entity) => {
-      const parts = [
-        entity.entity,
-        entity.name || "",
-        entity.icon || "",
-        entity.volume_entity || "",
-        entity.accent_color || "",
-      ];
+      const parts = [entity.entity, entity.name || "", entity.icon || "", entity.volume_entity || ""];
+      if (entity.music_assistant_entity || entity.accent_color) {
+        parts.push(entity.music_assistant_entity || "");
+      }
+      if (entity.accent_color) {
+        parts.push(entity.accent_color);
+      }
       while (parts.length > 1 && !parts[parts.length - 1]) {
         parts.pop();
       }
@@ -634,12 +761,12 @@ const cardStyles = css`
   ha-card {
     position: relative;
     overflow: hidden;
-    border-radius: 28px;
-    border: 1px solid color-mix(in srgb, var(--nodalia-accent) 18%, transparent);
+    border-radius: 26px;
+    border: 1px solid color-mix(in srgb, var(--nodalia-accent) 14%, transparent);
     background:
       linear-gradient(
         180deg,
-        color-mix(in srgb, var(--nodalia-accent) 7%, var(--ha-card-background, var(--card-background-color)) 93%),
+        color-mix(in srgb, var(--nodalia-accent) 5%, var(--ha-card-background, var(--card-background-color)) 95%),
         var(--ha-card-background, var(--card-background-color))
       );
     box-shadow: none;
@@ -668,27 +795,24 @@ const cardStyles = css`
   .shell {
     position: relative;
     display: grid;
-    gap: 14px;
-    padding: 16px;
+    gap: 10px;
+    padding: 12px;
     color: var(--primary-text-color);
   }
 
   .hero {
     position: relative;
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: 16px;
-    align-items: center;
-    padding: 18px;
+    display: block;
+    padding: 16px;
     border-radius: 24px;
     overflow: hidden;
     background:
       linear-gradient(
         180deg,
-        color-mix(in srgb, var(--nodalia-accent) 16%, transparent),
-        color-mix(in srgb, var(--nodalia-accent) 5%, transparent)
+        color-mix(in srgb, var(--nodalia-accent) 12%, transparent),
+        color-mix(in srgb, var(--nodalia-accent) 4%, transparent)
       );
-    border: 1px solid color-mix(in srgb, var(--nodalia-accent) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--nodalia-accent) 12%, transparent);
   }
 
   .hero-backdrop,
@@ -711,8 +835,8 @@ const cardStyles = css`
 
   .hero-veil {
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent),
-      linear-gradient(90deg, rgba(0, 0, 0, 0.06), transparent 65%);
+      linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent),
+      linear-gradient(90deg, rgba(0, 0, 0, 0.08), transparent 68%);
   }
 
   .hero > *:not(.hero-backdrop):not(.hero-veil) {
@@ -720,18 +844,25 @@ const cardStyles = css`
     z-index: 1;
   }
 
+  .hero-layout {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 14px;
+    align-items: center;
+  }
+
   .artwork-button {
     display: grid;
     place-items: center;
-    width: 94px;
-    height: 94px;
+    width: 84px;
+    height: 84px;
     padding: 0;
     overflow: hidden;
     border: 0;
-    border-radius: 24px;
+    border-radius: 22px;
     background: rgba(255, 255, 255, 0.12);
     box-shadow:
-      0 20px 44px rgba(0, 0, 0, 0.16),
+      0 18px 40px rgba(0, 0, 0, 0.14),
       inset 0 0 0 1px rgba(255, 255, 255, 0.18);
     cursor: pointer;
   }
@@ -752,31 +883,43 @@ const cardStyles = css`
   }
 
   .artwork-placeholder ha-icon {
-    --mdc-icon-size: 40px;
+    --mdc-icon-size: 34px;
   }
 
   .hero-copy {
     min-width: 0;
     display: grid;
-    gap: 8px;
+    gap: 10px;
   }
 
   .hero-topline {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
     align-items: center;
   }
 
   .hero-title {
     margin: 0;
-    font-size: 1.22rem;
-    line-height: 1.2;
+    font-size: 1.28rem;
+    line-height: 1.1;
     font-weight: 700;
     letter-spacing: -0.02em;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .hero-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .hero-heading-copy {
+    min-width: 0;
+    display: grid;
+    gap: 4px;
   }
 
   .hero-subtitle,
@@ -794,33 +937,109 @@ const cardStyles = css`
 
   .hero-supporting {
     color: var(--secondary-text-color);
-    font-size: 0.88rem;
-  }
-
-  .hero-actions {
-    display: grid;
-    gap: 10px;
-    align-self: stretch;
-    justify-items: end;
-    align-content: start;
+    font-size: 0.84rem;
   }
 
   .hero-chip {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 0.34rem 0.72rem;
+    padding: 0.32rem 0.68rem;
     border-radius: 999px;
-    font-size: 0.74rem;
+    font-size: 0.72rem;
     line-height: 1;
     font-weight: 700;
     letter-spacing: 0.02em;
-    background: rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(12px);
   }
 
   .hero-chip.state-playing {
     background: color-mix(in srgb, var(--nodalia-accent) 24%, rgba(255, 255, 255, 0.1));
+  }
+
+  .hero-chip.state-paused,
+  .hero-chip.state-buffering {
+    background: rgba(255, 255, 255, 0.18);
+  }
+
+  .hero-chip.accent {
+    background: color-mix(in srgb, var(--nodalia-accent) 18%, transparent);
+  }
+
+  .hero-progress {
+    display: grid;
+    gap: 6px;
+  }
+
+  .hero-progress-track {
+    width: 100%;
+    height: 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .hero-progress-fill {
+    height: 100%;
+    border-radius: inherit;
+    background:
+      linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--nodalia-accent) 86%, white 14%),
+        color-mix(in srgb, var(--nodalia-accent) 64%, white 36%)
+      );
+  }
+
+  .hero-times {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--secondary-text-color);
+    font-size: 0.76rem;
+  }
+
+  .hero-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .hero-controls,
+  .hero-actions-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .hero-actions-inline {
+    justify-content: flex-end;
+  }
+
+  .hero-ghost {
+    position: absolute;
+    right: -10px;
+    bottom: -12px;
+    display: grid;
+    place-items: center;
+    width: 120px;
+    height: 120px;
+    opacity: 0.14;
+    pointer-events: none;
+  }
+
+  .hero-ghost-artwork {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: saturate(0.7);
+  }
+
+  .hero-ghost-icon {
+    --mdc-icon-size: 84px;
   }
 
   .icon-button,
@@ -835,8 +1054,8 @@ const cardStyles = css`
   .icon-button {
     display: inline-grid;
     place-items: center;
-    width: 42px;
-    height: 42px;
+    width: 40px;
+    height: 40px;
     padding: 0;
     border: 0;
     border-radius: 50%;
@@ -867,8 +1086,17 @@ const cardStyles = css`
     background: color-mix(in srgb, var(--nodalia-accent) 28%, white 8%);
   }
 
+  .icon-button.subtle {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .icon-button.small {
+    width: 38px;
+    height: 38px;
+  }
+
   .icon-button ha-icon {
-    --mdc-icon-size: 20px;
+    --mdc-icon-size: 19px;
   }
 
   .entity-row,
@@ -876,9 +1104,9 @@ const cardStyles = css`
   .shortcut-row,
   .group-row {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     overflow-x: auto;
-    padding-bottom: 2px;
+    padding: 0 2px 2px;
     scrollbar-width: none;
   }
 
@@ -896,8 +1124,8 @@ const cardStyles = css`
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    min-height: 40px;
-    padding: 0.65rem 0.95rem;
+    min-height: 38px;
+    padding: 0.58rem 0.9rem;
     border: 0;
     border-radius: 999px;
     background: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
@@ -941,10 +1169,10 @@ const cardStyles = css`
   .transport-shell,
   .slider-shell,
   .section {
-    padding: 14px;
-    border-radius: 22px;
-    background: color-mix(in srgb, var(--primary-text-color) 4%, transparent);
-    border: 1px solid color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+    padding: 13px;
+    border-radius: 20px;
+    background: color-mix(in srgb, var(--primary-text-color) 3%, transparent);
+    border: 1px solid color-mix(in srgb, var(--primary-text-color) 6%, transparent);
   }
 
   .transport-shell {
@@ -1038,7 +1266,7 @@ const cardStyles = css`
     display: grid;
     gap: 4px;
     padding: 12px;
-    border-radius: 18px;
+    border-radius: 16px;
     background: rgba(255, 255, 255, 0.04);
   }
 
@@ -1128,11 +1356,14 @@ const cardStyles = css`
     height: 36px;
   }
 
-  .queue-empty,
-  .queue-loading,
-  .notice {
+  .queue-empty {
     color: var(--secondary-text-color);
     font-size: 0.9rem;
+  }
+
+  .queue-loading {
+    color: var(--secondary-text-color);
+    font-size: 0.88rem;
   }
 
   .queue-clear {
@@ -1149,40 +1380,45 @@ const cardStyles = css`
   }
 
   .collapsed .hero {
-    padding: 16px;
+    padding: 14px;
   }
 
   .collapsed .artwork-button {
-    width: 76px;
-    height: 76px;
-    border-radius: 20px;
+    width: 72px;
+    height: 72px;
+    border-radius: 18px;
   }
 
   .collapsed .hero-title {
-    font-size: 1.08rem;
+    font-size: 1.12rem;
+  }
+
+  .notice {
+    padding: 16px;
+    color: var(--secondary-text-color);
   }
 
   @media (max-width: 640px) {
     .shell {
-      padding: 14px;
+      padding: 10px;
     }
 
-    .hero {
-      grid-template-columns: auto minmax(0, 1fr);
+    .hero-layout {
+      grid-template-columns: 72px minmax(0, 1fr);
+      gap: 12px;
     }
 
-    .hero-actions {
-      grid-column: 1 / -1;
-      grid-auto-flow: column;
-      justify-content: start;
+    .artwork-button {
+      width: 72px;
+      height: 72px;
+      border-radius: 18px;
     }
 
-    .transport-main {
-      grid-template-columns: 1fr;
-    }
-
-    .transport-side {
-      justify-content: space-between;
+    .hero-ghost {
+      width: 96px;
+      height: 96px;
+      right: -8px;
+      bottom: -10px;
     }
   }
 `;
@@ -1521,6 +1757,15 @@ class NodaliaMediaPlayerEditor extends LitElement {
             <label class="toggle">
               <input
                 type="checkbox"
+                .checked=${Boolean(this._config.behavior.expanded_by_default)}
+                @change=${(event) =>
+                  this._updateBehavior("expanded_by_default", event.currentTarget.checked)}
+              />
+              <span>${this._t("editor.showExpandedByDefault")}</span>
+            </label>
+            <label class="toggle">
+              <input
+                type="checkbox"
                 .checked=${Boolean(this._config.behavior.show_timestamps)}
                 @change=${(event) =>
                   this._updateBehavior("show_timestamps", event.currentTarget.checked)}
@@ -1647,7 +1892,7 @@ class NodaliaMediaPlayer extends LitElement {
     this.hass = undefined;
     this._config = undefined;
     this._selectedEntityId = undefined;
-    this._detailsOpen = true;
+    this._detailsOpen = false;
     this._draftSeek = undefined;
     this._draftVolume = undefined;
     this._queueItems = [];
@@ -1661,10 +1906,11 @@ class NodaliaMediaPlayer extends LitElement {
 
   setConfig(config) {
     this._config = normalizeConfig(config);
+    this._detailsOpen = this._config.behavior.expanded_by_default;
   }
 
   getCardSize() {
-    return this._config && this._config.behavior.collapse_when_idle ? 4 : 6;
+    return this._detailsOpen ? 7 : 3;
   }
 
   updated(changedProperties) {
@@ -1751,22 +1997,22 @@ class NodaliaMediaPlayer extends LitElement {
       !this._config ||
       !this._config.queue.enabled ||
       !active ||
-      !active.stateObj ||
-      !isSessionActive(active.stateObj)
+      !active.playbackStateObj ||
+      !isSessionActive(active.playbackStateObj)
     ) {
       return "";
     }
     return [
-      active.entityId,
-      active.stateObj.state,
-      active.stateObj.attributes.media_content_id || "",
+      active.playbackEntityId,
+      active.playbackStateObj.state,
+      active.playbackStateObj.attributes.media_content_id || "",
       this._config.queue.limit,
     ].join("|");
   }
 
   _syncProgressTicker() {
     const active = this._activeEntry();
-    if (!active || !active.stateObj || active.stateObj.state !== "playing") {
+    if (!active || !active.playbackStateObj || active.playbackStateObj.state !== "playing") {
       this._clearProgressTicker();
       return;
     }
@@ -1792,8 +2038,8 @@ class NodaliaMediaPlayer extends LitElement {
       !this._config.queue.enabled ||
       this._queueAvailable === false ||
       !active ||
-      !active.stateObj ||
-      !isSessionActive(active.stateObj)
+      !active.playbackStateObj ||
+      !isSessionActive(active.playbackStateObj)
     ) {
       this._clearQueueTicker();
       return;
@@ -1820,8 +2066,8 @@ class NodaliaMediaPlayer extends LitElement {
       !this._config ||
       !this._config.queue.enabled ||
       !active ||
-      !active.stateObj ||
-      !isSessionActive(active.stateObj)
+      !active.playbackStateObj ||
+      !isSessionActive(active.playbackStateObj)
     ) {
       this._queueItems = [];
       this._queueLoading = false;
@@ -1835,8 +2081,12 @@ class NodaliaMediaPlayer extends LitElement {
 
     this._queueLoading = true;
     try {
-      const items = await fetchQueueItems(this.hass, active.entityId, this._config.queue.limit);
-      const currentId = String(active.stateObj.attributes.media_content_id || "");
+      const items = await fetchQueueItems(
+        this.hass,
+        active.playbackEntityId,
+        this._config.queue.limit,
+      );
+      const currentId = String(active.playbackStateObj.attributes.media_content_id || "");
       this._queueAvailable = true;
       this._queueItems = items.map((item) => ({
         ...item,
@@ -1876,6 +2126,22 @@ class NodaliaMediaPlayer extends LitElement {
     return Array.isArray(entry.config.hide_controls) && entry.config.hide_controls.includes(control);
   }
 
+  _displayState(entry) {
+    return entry.playbackStateObj || entry.stateObj;
+  }
+
+  _deviceState(entry) {
+    return entry.deviceStateObj || entry.stateObj;
+  }
+
+  _sourceState(entry) {
+    return entry.sourceStateObj || this._deviceState(entry);
+  }
+
+  _groupState(entry) {
+    return entry.groupStateObj || this._displayState(entry);
+  }
+
   _selectEntity(entityId) {
     this._selectedEntityId = entityId;
   }
@@ -1885,33 +2151,39 @@ class NodaliaMediaPlayer extends LitElement {
   }
 
   async _togglePower(entry) {
-    if (!this.hass || !entry || !entry.stateObj) {
+    const deviceState = this._deviceState(entry);
+    if (!this.hass || !entry || !deviceState) {
       return;
     }
     const service =
-      entry.stateObj.state === "off" || entry.stateObj.state === "standby"
+      deviceState.state === "off" || deviceState.state === "standby"
         ? "turn_on"
         : "turn_off";
     await this.hass.callService("media_player", service, { entity_id: entry.entityId });
   }
 
   async _togglePlayPause(entry) {
-    if (!this.hass || !entry || !entry.stateObj) {
+    const playbackState = this._displayState(entry);
+    if (!this.hass || !entry || !playbackState) {
       return;
     }
 
-    if (entry.stateObj.state === "playing" && supportsFeature(entry.stateObj, FEATURE_PAUSE)) {
-      await this.hass.callService("media_player", "media_pause", { entity_id: entry.entityId });
+    if (playbackState.state === "playing" && supportsFeature(playbackState, FEATURE_PAUSE)) {
+      await this.hass.callService("media_player", "media_pause", {
+        entity_id: entry.playbackEntityId,
+      });
       return;
     }
 
-    if (supportsFeature(entry.stateObj, FEATURE_PLAY)) {
-      await this.hass.callService("media_player", "media_play", { entity_id: entry.entityId });
+    if (supportsFeature(playbackState, FEATURE_PLAY)) {
+      await this.hass.callService("media_player", "media_play", {
+        entity_id: entry.playbackEntityId,
+      });
       return;
     }
 
     await this.hass.callService("media_player", "media_play_pause", {
-      entity_id: entry.entityId,
+      entity_id: entry.playbackEntityId,
     });
   }
 
@@ -1920,7 +2192,7 @@ class NodaliaMediaPlayer extends LitElement {
       return;
     }
     await this.hass.callService("media_player", "media_previous_track", {
-      entity_id: entry.entityId,
+      entity_id: entry.playbackEntityId,
     });
   }
 
@@ -1929,7 +2201,7 @@ class NodaliaMediaPlayer extends LitElement {
       return;
     }
     await this.hass.callService("media_player", "media_next_track", {
-      entity_id: entry.entityId,
+      entity_id: entry.playbackEntityId,
     });
   }
 
@@ -1948,7 +2220,7 @@ class NodaliaMediaPlayer extends LitElement {
       return;
     }
     await this.hass.callService("media_player", "media_seek", {
-      entity_id: entry.entityId,
+      entity_id: entry.playbackEntityId,
       seek_position: seconds,
     });
   }
@@ -1969,32 +2241,34 @@ class NodaliaMediaPlayer extends LitElement {
       return;
     }
     await this.hass.callService("media_player", "select_source", {
-      entity_id: entry.entityId,
+      entity_id: (this._sourceState(entry) && this._sourceState(entry).entity_id) || entry.entityId,
       source,
     });
   }
 
   async _toggleGroupMember(activeEntry, memberId) {
-    if (!this.hass || !activeEntry || !activeEntry.stateObj || memberId === activeEntry.entityId) {
+    const groupState = this._groupState(activeEntry);
+    if (!this.hass || !activeEntry || !groupState || memberId === activeEntry.groupEntityId) {
       return;
     }
-    const groupMembers = normalizeGroupMembers(activeEntry.stateObj);
+    const groupMembers = normalizeGroupMembers(groupState);
     if (groupMembers.includes(memberId)) {
       await this.hass.callService("media_player", "unjoin", { entity_id: memberId });
       return;
     }
     await this.hass.callService("media_player", "join", {
-      entity_id: activeEntry.entityId,
+      entity_id: activeEntry.groupEntityId,
       group_members: [memberId],
     });
   }
 
   async _ungroupAll(activeEntry) {
-    if (!this.hass || !activeEntry || !activeEntry.stateObj) {
+    const groupState = this._groupState(activeEntry);
+    if (!this.hass || !activeEntry || !groupState) {
       return;
     }
-    const members = normalizeGroupMembers(activeEntry.stateObj).filter(
-      (memberId) => memberId !== activeEntry.entityId,
+    const members = normalizeGroupMembers(groupState).filter(
+      (memberId) => memberId !== activeEntry.groupEntityId,
     );
     await Promise.all(
       members.map((memberId) =>
@@ -2012,8 +2286,8 @@ class NodaliaMediaPlayer extends LitElement {
       return;
     }
     const data = interpolateTemplate(
-      entry.config.favorite_service_data || { entity_id: entry.entityId },
-      placeholderContext(entry.stateObj),
+      entry.config.favorite_service_data || { entity_id: entry.playbackEntityId },
+      placeholderContext(this._displayState(entry)),
     );
     await this.hass.callService(parts[0], parts[1], data);
   }
@@ -2026,8 +2300,9 @@ class NodaliaMediaPlayer extends LitElement {
     const entityId =
       shortcut.entity && shortcut.entity !== "current"
         ? shortcut.entity
-        : activeEntry.entityId;
-    const entity = (this.hass.states && this.hass.states[entityId]) || activeEntry.stateObj;
+        : activeEntry.playbackEntityId;
+    const entity =
+      (this.hass.states && this.hass.states[entityId]) || this._displayState(activeEntry);
     const context = placeholderContext(entity);
 
     switch (shortcut.action) {
@@ -2085,61 +2360,121 @@ class NodaliaMediaPlayer extends LitElement {
     `;
   }
 
-  _renderHero(active) {
-    const artwork = artworkForEntity(active.stateObj, active.config.image);
-    const title = active.stateObj ? mediaTitle(active.stateObj) : active.config.name || active.entityId;
-    const subtitle = active.stateObj
-      ? mediaSubtitle(active.stateObj) || friendlyName(active.stateObj, active.config.name)
-      : this._t("common.unavailable");
-    const supporting = active.stateObj
-      ? mediaSupportingText(active.stateObj) || friendlyName(active.stateObj, active.config.name)
-      : active.entityId;
-    const stateClass = `hero-chip state-${(active.stateObj && active.stateObj.state) || "unknown"}`;
-    const backdropStyle = artwork ? `background-image:url("${artwork}")` : "";
-    const blurClass = this._config.appearance.blur_background ? "hero-backdrop blur" : "hero-backdrop";
+  _renderHeroProgress(active) {
+    const playbackState = this._displayState(active);
+    if (!playbackState) {
+      return html``;
+    }
+    const duration = Number(playbackState.attributes.media_duration || 0);
+    if (!duration) {
+      return html``;
+    }
+    const current = clamp(currentMediaPosition(playbackState, this._now), 0, duration);
+    const width = `${(current / duration) * 100}%`;
+    return html`
+      <div class="hero-progress">
+        <div class="hero-progress-track">
+          <div class="hero-progress-fill" style=${`width:${width};`}></div>
+        </div>
+        ${this._config.behavior.show_timestamps
+          ? html`
+              <div class="hero-times">
+                <span>${formatTime(current)}</span>
+                <span>${formatTime(duration)}</span>
+              </div>
+            `
+          : html``}
+      </div>
+    `;
+  }
+
+  _renderHeroTransport(active) {
+    const playbackState = this._displayState(active);
+    const deviceState = this._deviceState(active);
+    if (!playbackState && !deviceState) {
+      return html``;
+    }
+
+    const canPower =
+      !this._isHidden(active, "power") &&
+      !!deviceState &&
+      (supportsFeature(deviceState, FEATURE_TURN_ON) ||
+        supportsFeature(deviceState, FEATURE_TURN_OFF));
+    const canPrevious =
+      !this._isHidden(active, "previous") &&
+      !!playbackState &&
+      supportsFeature(playbackState, FEATURE_PREVIOUS_TRACK);
+    const canNext =
+      !this._isHidden(active, "next") &&
+      !!playbackState &&
+      supportsFeature(playbackState, FEATURE_NEXT_TRACK);
+    const canMute =
+      !this._isHidden(active, "mute") &&
+      !!active.volumeStateObj &&
+      supportsFeature(active.volumeStateObj, FEATURE_VOLUME_MUTE);
+    const playIcon = playbackState && playbackState.state === "playing" ? "mdi:pause" : "mdi:play";
+    const playLabel =
+      playbackState && playbackState.state === "playing"
+        ? this._t("common.pause")
+        : this._t("common.play");
 
     return html`
-      <section class="hero">
-        ${artwork ? html`<div class=${blurClass} style=${backdropStyle}></div>` : html``}
-        <div class="hero-veil"></div>
-
-        <button
-          class="artwork-button"
-          title=${this._t("common.moreInfo")}
-          @click=${() => this._openMoreInfo(active.entityId)}
-        >
-          ${artwork
-            ? html`
-                <img
-                  src=${artwork}
-                  alt=${title}
-                  style=${`object-fit:${this._config.appearance.artwork_fit};`}
-                />
-              `
-            : html`
-                <div class="artwork-placeholder">
-                  <ha-icon .icon=${iconForEntity(active.stateObj, active.config.icon)}></ha-icon>
-                </div>
-              `}
-        </button>
-
-        <div class="hero-copy">
-          <div class="hero-topline">
-            <span class=${stateClass}>${this._stateLabel(active)}</span>
-            <span class="hero-chip">${active.config.name || friendlyName(active.stateObj, active.entityId)}</span>
-          </div>
-          <h2 class="hero-title">${title}</h2>
-          <p class="hero-subtitle">${subtitle}</p>
-          <p class="hero-supporting">${supporting}</p>
+      <div class="hero-bottom">
+        <div class="hero-controls">
+          ${canPower
+            ? this._renderIconButton(
+                deviceState && (deviceState.state === "off" || deviceState.state === "standby")
+                  ? "mdi:power"
+                  : "mdi:power-standby",
+                this._t("common.power"),
+                () => this._togglePower(active),
+                "icon-button subtle small",
+              )
+            : html``}
+          ${canPrevious
+            ? this._renderIconButton(
+                "mdi:skip-previous",
+                this._t("common.previous"),
+                () => this._previousTrack(active),
+                "icon-button subtle small",
+              )
+            : html``}
+          ${playbackState
+            ? this._renderIconButton(
+                playIcon,
+                playLabel,
+                () => this._togglePlayPause(active),
+                "icon-button primary play-button",
+              )
+            : html``}
+          ${canNext
+            ? this._renderIconButton(
+                "mdi:skip-next",
+                this._t("common.next"),
+                () => this._nextTrack(active),
+                "icon-button subtle small",
+              )
+            : html``}
+          ${canMute
+            ? this._renderIconButton(
+                active.volumeStateObj.attributes.is_volume_muted
+                  ? "mdi:volume-off"
+                  : "mdi:volume-high",
+                active.volumeStateObj.attributes.is_volume_muted
+                  ? this._t("common.unmute")
+                  : this._t("common.mute"),
+                () => this._toggleMute(active),
+                "icon-button subtle small",
+              )
+            : html``}
         </div>
-
-        <div class="hero-actions">
+        <div class="hero-actions-inline">
           ${active.config.favorite_service
             ? this._renderIconButton(
                 "mdi:heart-outline",
                 this._t("common.favorite"),
                 () => this._triggerFavorite(active),
-                "icon-button",
+                "icon-button subtle small",
               )
             : html``}
           ${this._renderIconButton(
@@ -2148,14 +2483,89 @@ class NodaliaMediaPlayer extends LitElement {
             () => {
               this._detailsOpen = !this._detailsOpen;
             },
-            "icon-button details-toggle",
+            "icon-button subtle small",
           )}
           ${this._renderIconButton(
             "mdi:dots-horizontal",
             this._t("common.moreInfo"),
-            () => this._openMoreInfo(active.entityId),
-            "icon-button",
+            () => this._openMoreInfo(active.playbackEntityId),
+            "icon-button subtle small",
           )}
+        </div>
+      </div>
+    `;
+  }
+
+  _renderHero(active) {
+    const displayState = this._displayState(active);
+    const deviceState = this._deviceState(active);
+    const artwork = artworkForEntity(displayState, active.config.image);
+    const title = displayState ? mediaTitle(displayState) : active.config.name || active.entityId;
+    const subtitle = displayState
+      ? mediaSubtitle(displayState) || friendlyName(displayState, active.config.name)
+      : this._t("common.unavailable");
+    const supporting = displayState
+      ? mediaSupportingText(displayState) || friendlyName(deviceState, active.config.name)
+      : active.entityId;
+    const stateClass = `hero-chip state-${(displayState && displayState.state) || "unknown"}`;
+    const backdropStyle = artwork ? `background-image:url("${artwork}")` : "";
+    const blurClass = this._config.appearance.blur_background ? "hero-backdrop blur" : "hero-backdrop";
+    const entityLabel = active.config.name || friendlyName(deviceState, active.entityId);
+
+    return html`
+      <section class="hero">
+        ${artwork ? html`<div class=${blurClass} style=${backdropStyle}></div>` : html``}
+        <div class="hero-veil"></div>
+        <div class="hero-ghost">
+          ${artwork
+            ? html`<img class="hero-ghost-artwork" src=${artwork} alt="" />`
+            : html`
+                <ha-icon
+                  class="hero-ghost-icon"
+                  .icon=${iconForEntity(displayState, active.config.icon)}
+                ></ha-icon>
+              `}
+        </div>
+
+        <div class="hero-layout">
+          <button
+            class="artwork-button"
+            title=${this._t("common.moreInfo")}
+            @click=${() => this._openMoreInfo(active.playbackEntityId)}
+          >
+            ${artwork
+              ? html`
+                  <img
+                    src=${artwork}
+                    alt=${title}
+                    style=${`object-fit:${this._config.appearance.artwork_fit};`}
+                  />
+                `
+              : html`
+                  <div class="artwork-placeholder">
+                    <ha-icon .icon=${iconForEntity(displayState, active.config.icon)}></ha-icon>
+                  </div>
+                `}
+          </button>
+
+          <div class="hero-copy">
+            <div class="hero-topline">
+              <span class=${stateClass}>${this._stateLabel(active)}</span>
+              <span class="hero-chip">${entityLabel}</span>
+              ${active.displayOrigin === "music_assistant"
+                ? html`<span class="hero-chip accent">${this._t("common.musicAssistant")}</span>`
+                : html``}
+            </div>
+            <div class="hero-heading">
+              <div class="hero-heading-copy">
+                <h2 class="hero-title">${title}</h2>
+                <p class="hero-subtitle">${subtitle}</p>
+                <p class="hero-supporting">${supporting}</p>
+              </div>
+            </div>
+            ${this._renderHeroProgress(active)}
+            ${this._renderHeroTransport(active)}
+          </div>
         </div>
       </section>
     `;
@@ -2169,7 +2579,9 @@ class NodaliaMediaPlayer extends LitElement {
     return html`
       <div class="entity-row">
         ${entries.map((entry) => {
-          const label = entry.config.name || friendlyName(entry.stateObj, entry.entityId);
+          const label =
+            entry.config.name ||
+            friendlyName(entry.deviceStateObj || entry.stateObj, entry.entityId);
           return html`
             <button
               class=${classes({
@@ -2190,16 +2602,20 @@ class NodaliaMediaPlayer extends LitElement {
   }
 
   _renderProgress(active) {
+    if (!this._detailsOpen) {
+      return html``;
+    }
+    const playbackState = this._displayState(active);
     if (
-      !active.stateObj ||
+      !playbackState ||
       this._isHidden(active, "seek") ||
       !this._config.behavior.enable_seek ||
-      !supportsFeature(active.stateObj, FEATURE_SEEK)
+      !supportsFeature(playbackState, FEATURE_SEEK)
     ) {
       return html``;
     }
 
-    const duration = Number(active.stateObj.attributes.media_duration || 0);
+    const duration = Number(playbackState.attributes.media_duration || 0);
     if (!duration) {
       return html``;
     }
@@ -2207,7 +2623,7 @@ class NodaliaMediaPlayer extends LitElement {
     const current = clamp(
       this._draftSeek !== undefined
         ? this._draftSeek
-        : currentMediaPosition(active.stateObj, this._now),
+        : currentMediaPosition(playbackState, this._now),
       0,
       duration,
     );
@@ -2329,6 +2745,9 @@ class NodaliaMediaPlayer extends LitElement {
   }
 
   _renderVolume(active) {
+    if (!this._detailsOpen) {
+      return html``;
+    }
     const volumeEntity = active.volumeStateObj;
     if (
       !this._config.behavior.show_volume ||
@@ -2371,12 +2790,13 @@ class NodaliaMediaPlayer extends LitElement {
   }
 
   _renderSources(active) {
-    const sources = active.stateObj ? active.stateObj.attributes.source_list : undefined;
+    const sourceState = this._sourceState(active);
+    const sources = sourceState ? sourceState.attributes.source_list : undefined;
     if (
       !this._config.behavior.show_sources ||
-      !active.stateObj ||
+      !sourceState ||
       this._isHidden(active, "source") ||
-      !supportsFeature(active.stateObj, FEATURE_SELECT_SOURCE) ||
+      !supportsFeature(sourceState, FEATURE_SELECT_SOURCE) ||
       !Array.isArray(sources) ||
       !sources.length
     ) {
@@ -2388,7 +2808,7 @@ class NodaliaMediaPlayer extends LitElement {
         <div class="section-header">
           <div>
             <h3>${this._t("common.sources")}</h3>
-            <p>${this._t("common.currentSource")}: ${String(active.stateObj.attributes.source || "-")}</p>
+            <p>${this._t("common.currentSource")}: ${String(sourceState.attributes.source || "-")}</p>
           </div>
         </div>
         <div class="source-row">
@@ -2397,7 +2817,7 @@ class NodaliaMediaPlayer extends LitElement {
               <button
                 class=${classes({
                   "source-chip": true,
-                  selected: source === active.stateObj.attributes.source,
+                  selected: source === sourceState.attributes.source,
                 })}
                 @click=${() => this._selectSource(active, source)}
               >
@@ -2411,8 +2831,11 @@ class NodaliaMediaPlayer extends LitElement {
   }
 
   _renderShortcuts(active) {
+    if (!this._detailsOpen) {
+      return html``;
+    }
     const shortcuts = this._config.actions.filter((shortcut) =>
-      visibilityMatches(shortcut.visibility, active.stateObj),
+      visibilityMatches(shortcut.visibility, this._displayState(active)),
     );
     if (!shortcuts.length) {
       return html``;
@@ -2440,13 +2863,13 @@ class NodaliaMediaPlayer extends LitElement {
   }
 
   _renderGroupControls(entries, active) {
-    if (!this._config.behavior.show_group_controls || !active.stateObj || entries.length <= 1) {
+    const groupState = this._groupState(active);
+    if (!this._config.behavior.show_group_controls || !groupState || entries.length <= 1) {
       return html``;
     }
 
-    const groupedPlayers = normalizeGroupMembers(active.stateObj);
-    const canGroup =
-      supportsFeature(active.stateObj, FEATURE_GROUPING) || groupedPlayers.length > 1;
+    const groupedPlayers = normalizeGroupMembers(groupState);
+    const canGroup = supportsFeature(groupState, FEATURE_GROUPING) || groupedPlayers.length > 1;
     if (!canGroup) {
       return html``;
     }
@@ -2513,7 +2936,7 @@ class NodaliaMediaPlayer extends LitElement {
                     if (!this.hass) {
                       return;
                     }
-                    await clearQueue(this.hass, active.entityId);
+                    await clearQueue(this.hass, active.playbackEntityId);
                     await this._refreshQueue();
                   }}
                 >
@@ -2534,7 +2957,7 @@ class NodaliaMediaPlayer extends LitElement {
                       @click=${() =>
                         this.hass &&
                         item.queue_item_id &&
-                        playQueueItem(this.hass, active.entityId, item.queue_item_id)}
+                        playQueueItem(this.hass, active.playbackEntityId, item.queue_item_id)}
                     >
                       <div class="queue-thumb">
                         ${queueItemImage(item)
@@ -2555,7 +2978,11 @@ class NodaliaMediaPlayer extends LitElement {
                           "mdi:close",
                           this._t("common.remove"),
                           async () => {
-                            await removeQueueItem(this.hass, active.entityId, item.queue_item_id);
+                            await removeQueueItem(
+                              this.hass,
+                              active.playbackEntityId,
+                              item.queue_item_id,
+                            );
                             await this._refreshQueue();
                           },
                           "icon-button",
@@ -2571,17 +2998,36 @@ class NodaliaMediaPlayer extends LitElement {
   }
 
   _renderDetails(active) {
-    if (!this._config.behavior.show_details || !this._detailsOpen || !active.stateObj) {
+    const displayState = this._displayState(active);
+    const deviceState = this._deviceState(active);
+    if (!this._config.behavior.show_details || !this._detailsOpen || !displayState) {
       return html``;
     }
 
     const details = [
+      {
+        label: this._t("common.device"),
+        value: active.config.name || friendlyName(deviceState, active.entityId),
+      },
+      {
+        label: this._t("common.sourceEntity"),
+        value:
+          active.displayOrigin === "music_assistant"
+            ? this._t("common.musicAssistant")
+            : this._t("common.device"),
+      },
       { label: this._t("common.state"), value: this._stateLabel(active) },
-      { label: this._t("common.artist"), value: String(active.stateObj.attributes.media_artist || "") },
-      { label: this._t("common.album"), value: String(active.stateObj.attributes.media_album_name || "") },
-      { label: this._t("common.currentSource"), value: String(active.stateObj.attributes.source || "") },
-      { label: this._t("common.app"), value: String(active.stateObj.attributes.app_name || "") },
-      { label: this._t("common.soundMode"), value: String(active.stateObj.attributes.sound_mode || "") },
+      { label: this._t("common.artist"), value: String(displayState.attributes.media_artist || "") },
+      { label: this._t("common.album"), value: String(displayState.attributes.media_album_name || "") },
+      {
+        label: this._t("common.currentSource"),
+        value: String((this._sourceState(active) && this._sourceState(active).attributes.source) || ""),
+      },
+      { label: this._t("common.app"), value: String(displayState.attributes.app_name || "") },
+      {
+        label: this._t("common.soundMode"),
+        value: String((this._sourceState(active) && this._sourceState(active).attributes.sound_mode) || ""),
+      },
     ].filter((item) => item.value);
 
     if (!details.length) {
@@ -2643,7 +3089,6 @@ class NodaliaMediaPlayer extends LitElement {
           ${this._renderHero(active)}
           ${this._renderEntityChips(entries, active)}
           ${this._renderProgress(active)}
-          ${this._renderTransport(active)}
           ${this._renderVolume(active)}
           ${this._renderShortcuts(active)}
           ${collapsed || !this._detailsOpen ? html`` : this._renderSources(active)}

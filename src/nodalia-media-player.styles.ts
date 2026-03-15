@@ -8,12 +8,12 @@ export const cardStyles = css`
   ha-card {
     position: relative;
     overflow: hidden;
-    border-radius: 28px;
-    border: 1px solid color-mix(in srgb, var(--nodalia-accent) 18%, transparent);
+    border-radius: 26px;
+    border: 1px solid color-mix(in srgb, var(--nodalia-accent) 14%, transparent);
     background:
       linear-gradient(
         180deg,
-        color-mix(in srgb, var(--nodalia-accent) 7%, var(--ha-card-background, var(--card-background-color)) 93%),
+        color-mix(in srgb, var(--nodalia-accent) 5%, var(--ha-card-background, var(--card-background-color)) 95%),
         var(--ha-card-background, var(--card-background-color))
       );
     box-shadow: none;
@@ -42,27 +42,24 @@ export const cardStyles = css`
   .shell {
     position: relative;
     display: grid;
-    gap: 14px;
-    padding: 16px;
+    gap: 10px;
+    padding: 12px;
     color: var(--primary-text-color);
   }
 
   .hero {
     position: relative;
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    gap: 16px;
-    align-items: center;
-    padding: 18px;
+    display: block;
+    padding: 16px;
     border-radius: 24px;
     overflow: hidden;
     background:
       linear-gradient(
         180deg,
-        color-mix(in srgb, var(--nodalia-accent) 16%, transparent),
-        color-mix(in srgb, var(--nodalia-accent) 5%, transparent)
+        color-mix(in srgb, var(--nodalia-accent) 12%, transparent),
+        color-mix(in srgb, var(--nodalia-accent) 4%, transparent)
       );
-    border: 1px solid color-mix(in srgb, var(--nodalia-accent) 14%, transparent);
+    border: 1px solid color-mix(in srgb, var(--nodalia-accent) 12%, transparent);
   }
 
   .hero-backdrop,
@@ -85,8 +82,8 @@ export const cardStyles = css`
 
   .hero-veil {
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent),
-      linear-gradient(90deg, rgba(0, 0, 0, 0.06), transparent 65%);
+      linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent),
+      linear-gradient(90deg, rgba(0, 0, 0, 0.08), transparent 68%);
   }
 
   .hero > *:not(.hero-backdrop):not(.hero-veil) {
@@ -94,18 +91,25 @@ export const cardStyles = css`
     z-index: 1;
   }
 
+  .hero-layout {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 14px;
+    align-items: center;
+  }
+
   .artwork-button {
     display: grid;
     place-items: center;
-    width: 94px;
-    height: 94px;
+    width: 84px;
+    height: 84px;
     padding: 0;
     overflow: hidden;
     border: 0;
-    border-radius: 24px;
+    border-radius: 22px;
     background: rgba(255, 255, 255, 0.12);
     box-shadow:
-      0 20px 44px rgba(0, 0, 0, 0.16),
+      0 18px 40px rgba(0, 0, 0, 0.14),
       inset 0 0 0 1px rgba(255, 255, 255, 0.18);
     cursor: pointer;
   }
@@ -126,31 +130,43 @@ export const cardStyles = css`
   }
 
   .artwork-placeholder ha-icon {
-    --mdc-icon-size: 40px;
+    --mdc-icon-size: 34px;
   }
 
   .hero-copy {
     min-width: 0;
     display: grid;
-    gap: 8px;
+    gap: 10px;
   }
 
   .hero-topline {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: 6px;
     align-items: center;
   }
 
   .hero-title {
     margin: 0;
-    font-size: 1.22rem;
-    line-height: 1.2;
+    font-size: 1.28rem;
+    line-height: 1.1;
     font-weight: 700;
     letter-spacing: -0.02em;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .hero-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .hero-heading-copy {
+    min-width: 0;
+    display: grid;
+    gap: 4px;
   }
 
   .hero-subtitle,
@@ -168,28 +184,20 @@ export const cardStyles = css`
 
   .hero-supporting {
     color: var(--secondary-text-color);
-    font-size: 0.88rem;
-  }
-
-  .hero-actions {
-    display: grid;
-    gap: 10px;
-    align-self: stretch;
-    justify-items: end;
-    align-content: start;
+    font-size: 0.84rem;
   }
 
   .hero-chip {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 0.34rem 0.72rem;
+    padding: 0.32rem 0.68rem;
     border-radius: 999px;
-    font-size: 0.74rem;
+    font-size: 0.72rem;
     line-height: 1;
     font-weight: 700;
     letter-spacing: 0.02em;
-    background: rgba(255, 255, 255, 0.16);
+    background: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(12px);
   }
 
@@ -200,6 +208,85 @@ export const cardStyles = css`
   .hero-chip.state-paused,
   .hero-chip.state-buffering {
     background: rgba(255, 255, 255, 0.18);
+  }
+
+  .hero-chip.accent {
+    background: color-mix(in srgb, var(--nodalia-accent) 18%, transparent);
+  }
+
+  .hero-progress {
+    display: grid;
+    gap: 6px;
+  }
+
+  .hero-progress-track {
+    width: 100%;
+    height: 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .hero-progress-fill {
+    height: 100%;
+    border-radius: inherit;
+    background:
+      linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--nodalia-accent) 86%, white 14%),
+        color-mix(in srgb, var(--nodalia-accent) 64%, white 36%)
+      );
+  }
+
+  .hero-times {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--secondary-text-color);
+    font-size: 0.76rem;
+  }
+
+  .hero-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .hero-controls,
+  .hero-actions-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .hero-actions-inline {
+    justify-content: flex-end;
+  }
+
+  .hero-ghost {
+    position: absolute;
+    right: -10px;
+    bottom: -12px;
+    display: grid;
+    place-items: center;
+    width: 120px;
+    height: 120px;
+    opacity: 0.14;
+    pointer-events: none;
+  }
+
+  .hero-ghost-artwork {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: saturate(0.7);
+  }
+
+  .hero-ghost-icon {
+    --mdc-icon-size: 84px;
   }
 
   .icon-button,
@@ -214,8 +301,8 @@ export const cardStyles = css`
   .icon-button {
     display: inline-grid;
     place-items: center;
-    width: 42px;
-    height: 42px;
+    width: 40px;
+    height: 40px;
     padding: 0;
     border: 0;
     border-radius: 50%;
@@ -246,8 +333,17 @@ export const cardStyles = css`
     background: color-mix(in srgb, var(--nodalia-accent) 28%, white 8%);
   }
 
+  .icon-button.subtle {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .icon-button.small {
+    width: 38px;
+    height: 38px;
+  }
+
   .icon-button ha-icon {
-    --mdc-icon-size: 20px;
+    --mdc-icon-size: 19px;
   }
 
   .entity-row,
@@ -255,9 +351,9 @@ export const cardStyles = css`
   .shortcut-row,
   .group-row {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     overflow-x: auto;
-    padding-bottom: 2px;
+    padding: 0 2px 2px;
     scrollbar-width: none;
   }
 
@@ -275,8 +371,8 @@ export const cardStyles = css`
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    min-height: 40px;
-    padding: 0.65rem 0.95rem;
+    min-height: 38px;
+    padding: 0.58rem 0.9rem;
     border: 0;
     border-radius: 999px;
     background: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
@@ -320,10 +416,10 @@ export const cardStyles = css`
   .transport-shell,
   .slider-shell,
   .section {
-    padding: 14px;
-    border-radius: 22px;
-    background: color-mix(in srgb, var(--primary-text-color) 4%, transparent);
-    border: 1px solid color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+    padding: 13px;
+    border-radius: 20px;
+    background: color-mix(in srgb, var(--primary-text-color) 3%, transparent);
+    border: 1px solid color-mix(in srgb, var(--primary-text-color) 6%, transparent);
   }
 
   .transport-shell {
@@ -417,7 +513,7 @@ export const cardStyles = css`
     display: grid;
     gap: 4px;
     padding: 12px;
-    border-radius: 18px;
+    border-radius: 16px;
     background: rgba(255, 255, 255, 0.04);
   }
 
@@ -526,17 +622,17 @@ export const cardStyles = css`
   }
 
   .collapsed .hero {
-    padding: 16px;
+    padding: 14px;
   }
 
   .collapsed .artwork-button {
-    width: 76px;
-    height: 76px;
-    border-radius: 20px;
+    width: 72px;
+    height: 72px;
+    border-radius: 18px;
   }
 
   .collapsed .hero-title {
-    font-size: 1.08rem;
+    font-size: 1.12rem;
   }
 
   .notice {
@@ -551,25 +647,25 @@ export const cardStyles = css`
 
   @media (max-width: 640px) {
     .shell {
-      padding: 14px;
+      padding: 10px;
     }
 
-    .hero {
-      grid-template-columns: auto minmax(0, 1fr);
+    .hero-layout {
+      grid-template-columns: 72px minmax(0, 1fr);
+      gap: 12px;
     }
 
-    .hero-actions {
-      grid-column: 1 / -1;
-      grid-auto-flow: column;
-      justify-content: start;
+    .artwork-button {
+      width: 72px;
+      height: 72px;
+      border-radius: 18px;
     }
 
-    .transport-main {
-      grid-template-columns: 1fr;
-    }
-
-    .transport-side {
-      justify-content: space-between;
+    .hero-ghost {
+      width: 96px;
+      height: 96px;
+      right: -8px;
+      bottom: -10px;
     }
   }
 `;
