@@ -6,60 +6,114 @@ export const cardStyles = css`
   }
 
   ha-card {
+    --nodalia-card-bg:
+      color-mix(
+        in srgb,
+        var(--ha-card-background, var(--card-background-color)) 94%,
+        var(--primary-text-color) 6%
+      );
+    --nodalia-card-bg-end:
+      color-mix(
+        in srgb,
+        var(--ha-card-background, var(--card-background-color)) 90%,
+        var(--primary-text-color) 10%
+      );
+    --nodalia-hero-bg:
+      color-mix(
+        in srgb,
+        var(--ha-card-background, var(--card-background-color)) 90%,
+        var(--primary-text-color) 10%
+      );
+    --nodalia-hero-bg-end:
+      color-mix(
+        in srgb,
+        var(--ha-card-background, var(--card-background-color)) 86%,
+        var(--primary-text-color) 14%
+      );
+    --nodalia-surface:
+      color-mix(
+        in srgb,
+        var(--ha-card-background, var(--card-background-color)) 88%,
+        var(--primary-text-color) 12%
+      );
+    --nodalia-surface-soft:
+      color-mix(
+        in srgb,
+        var(--ha-card-background, var(--card-background-color)) 92%,
+        var(--primary-text-color) 8%
+      );
+    --nodalia-chip-bg: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
+    --nodalia-control-bg: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+    --nodalia-control-bg-strong:
+      color-mix(in srgb, var(--primary-text-color) 14%, transparent);
+    --nodalia-outline: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
+    --nodalia-outline-strong:
+      color-mix(in srgb, var(--primary-text-color) 12%, transparent);
     position: relative;
     overflow: hidden;
     border-radius: 26px;
-    border: 1px solid color-mix(in srgb, var(--nodalia-accent) 14%, transparent);
+    border: 1px solid var(--nodalia-outline);
     background:
       linear-gradient(
         180deg,
-        color-mix(in srgb, var(--nodalia-accent) 5%, var(--ha-card-background, var(--card-background-color)) 95%),
-        var(--ha-card-background, var(--card-background-color))
+        var(--nodalia-card-bg),
+        var(--nodalia-card-bg-end)
       );
     box-shadow: none;
   }
 
   ha-card.theme-dark {
     color-scheme: dark;
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--nodalia-accent) 10%, #1b2027 90%),
-        #12161c
-      );
+    --nodalia-card-bg: #24262d;
+    --nodalia-card-bg-end: #202229;
+    --nodalia-hero-bg: #2a2d34;
+    --nodalia-hero-bg-end: #282b32;
+    --nodalia-surface: #2e3138;
+    --nodalia-surface-soft: #31343c;
+    --nodalia-chip-bg: rgba(255, 255, 255, 0.06);
+    --nodalia-control-bg: rgba(255, 255, 255, 0.07);
+    --nodalia-control-bg-strong: rgba(255, 255, 255, 0.12);
+    --nodalia-outline: rgba(255, 255, 255, 0.06);
+    --nodalia-outline-strong: rgba(255, 255, 255, 0.1);
   }
 
   ha-card.theme-light {
     color-scheme: light;
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--nodalia-accent) 8%, #fbfdff 92%),
-        #f5f7fb
-      );
+    --nodalia-card-bg: #f6f7fb;
+    --nodalia-card-bg-end: #eef1f7;
+    --nodalia-hero-bg: #ffffff;
+    --nodalia-hero-bg-end: #f3f5fa;
+    --nodalia-surface: #ffffff;
+    --nodalia-surface-soft: #eef1f7;
+    --nodalia-chip-bg: rgba(15, 23, 42, 0.05);
+    --nodalia-control-bg: rgba(15, 23, 42, 0.06);
+    --nodalia-control-bg-strong: rgba(15, 23, 42, 0.1);
+    --nodalia-outline: rgba(15, 23, 42, 0.08);
+    --nodalia-outline-strong: rgba(15, 23, 42, 0.12);
   }
 
   .shell {
     position: relative;
     display: grid;
-    gap: 10px;
-    padding: 12px;
+    gap: 8px;
+    padding: 10px;
     color: var(--primary-text-color);
   }
 
   .hero {
     position: relative;
     display: block;
-    padding: 16px;
-    border-radius: 24px;
+    padding: 14px;
+    border-radius: 22px;
     overflow: hidden;
     background:
       linear-gradient(
         180deg,
-        color-mix(in srgb, var(--nodalia-accent) 12%, transparent),
-        color-mix(in srgb, var(--nodalia-accent) 4%, transparent)
+        var(--nodalia-hero-bg),
+        var(--nodalia-hero-bg-end)
       );
-    border: 1px solid color-mix(in srgb, var(--nodalia-accent) 12%, transparent);
+    border: 1px solid var(--nodalia-outline);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
   }
 
   .hero-backdrop,
@@ -72,18 +126,18 @@ export const cardStyles = css`
     background-position: center;
     background-repeat: no-repeat;
     background-size: cover;
-    opacity: 0.28;
-    transform: scale(1.08);
+    opacity: 0.12;
+    transform: scale(1.06);
   }
 
   .hero-backdrop.blur {
-    filter: blur(28px) saturate(1.2);
+    filter: blur(36px) saturate(0.75);
   }
 
   .hero-veil {
     background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent),
-      linear-gradient(90deg, rgba(0, 0, 0, 0.08), transparent 68%);
+      linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 34%),
+      linear-gradient(135deg, rgba(255, 255, 255, 0.01), rgba(0, 0, 0, 0.12));
   }
 
   .hero > *:not(.hero-backdrop):not(.hero-veil) {
@@ -93,24 +147,22 @@ export const cardStyles = css`
 
   .hero-layout {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 14px;
+    grid-template-columns: 72px minmax(0, 1fr);
+    gap: 12px;
     align-items: center;
   }
 
   .artwork-button {
     display: grid;
     place-items: center;
-    width: 84px;
-    height: 84px;
+    width: 72px;
+    height: 72px;
     padding: 0;
     overflow: hidden;
-    border: 0;
-    border-radius: 22px;
-    background: rgba(255, 255, 255, 0.12);
-    box-shadow:
-      0 18px 40px rgba(0, 0, 0, 0.14),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+    border: 1px solid var(--nodalia-outline-strong);
+    border-radius: 20px;
+    background: var(--nodalia-surface);
+    box-shadow: none;
     cursor: pointer;
   }
 
@@ -125,18 +177,22 @@ export const cardStyles = css`
     width: 100%;
     height: 100%;
     background:
-      radial-gradient(circle at top, color-mix(in srgb, var(--nodalia-accent) 28%, white), transparent 70%),
-      color-mix(in srgb, var(--nodalia-accent) 14%, transparent);
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--nodalia-surface-soft) 82%, var(--primary-text-color) 18%),
+        var(--nodalia-surface)
+      );
   }
 
   .artwork-placeholder ha-icon {
-    --mdc-icon-size: 34px;
+    --mdc-icon-size: 30px;
+    opacity: 0.82;
   }
 
   .hero-copy {
     min-width: 0;
     display: grid;
-    gap: 10px;
+    gap: 8px;
   }
 
   .hero-topline {
@@ -148,8 +204,8 @@ export const cardStyles = css`
 
   .hero-title {
     margin: 0;
-    font-size: 1.28rem;
-    line-height: 1.1;
+    font-size: 1.18rem;
+    line-height: 1.08;
     font-weight: 700;
     letter-spacing: -0.02em;
     overflow: hidden;
@@ -160,13 +216,13 @@ export const cardStyles = css`
   .hero-heading {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
-    gap: 8px;
+    gap: 6px;
   }
 
   .hero-heading-copy {
     min-width: 0;
     display: grid;
-    gap: 4px;
+    gap: 3px;
   }
 
   .hero-subtitle,
@@ -179,63 +235,66 @@ export const cardStyles = css`
 
   .hero-subtitle {
     color: var(--primary-text-color);
+    opacity: 0.92;
+    font-size: 1rem;
     font-weight: 500;
   }
 
   .hero-supporting {
     color: var(--secondary-text-color);
-    font-size: 0.84rem;
+    font-size: 0.82rem;
   }
 
   .hero-chip {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 0.32rem 0.68rem;
+    padding: 0.34rem 0.72rem;
+    border: 1px solid var(--nodalia-outline);
     border-radius: 999px;
     font-size: 0.72rem;
     line-height: 1;
     font-weight: 700;
     letter-spacing: 0.02em;
-    background: rgba(255, 255, 255, 0.1);
-    backdrop-filter: blur(12px);
+    background: var(--nodalia-chip-bg);
   }
 
   .hero-chip.state-playing {
-    background: color-mix(in srgb, var(--nodalia-accent) 24%, rgba(255, 255, 255, 0.1));
+    background:
+      color-mix(in srgb, var(--nodalia-accent) 12%, var(--nodalia-chip-bg));
+    border-color:
+      color-mix(in srgb, var(--nodalia-accent) 18%, var(--nodalia-outline));
   }
 
   .hero-chip.state-paused,
   .hero-chip.state-buffering {
-    background: rgba(255, 255, 255, 0.18);
+    background: var(--nodalia-control-bg);
   }
 
   .hero-chip.accent {
-    background: color-mix(in srgb, var(--nodalia-accent) 18%, transparent);
+    background:
+      color-mix(in srgb, var(--nodalia-accent) 9%, var(--nodalia-chip-bg));
+    border-color:
+      color-mix(in srgb, var(--nodalia-accent) 14%, var(--nodalia-outline));
   }
 
   .hero-progress {
     display: grid;
-    gap: 6px;
+    gap: 5px;
   }
 
   .hero-progress-track {
     width: 100%;
-    height: 6px;
+    height: 4px;
     overflow: hidden;
     border-radius: 999px;
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--nodalia-control-bg);
   }
 
   .hero-progress-fill {
     height: 100%;
     border-radius: inherit;
-    background:
-      linear-gradient(
-        90deg,
-        color-mix(in srgb, var(--nodalia-accent) 86%, white 14%),
-        color-mix(in srgb, var(--nodalia-accent) 64%, white 36%)
-      );
+    background: color-mix(in srgb, var(--nodalia-accent) 76%, white 24%);
   }
 
   .hero-times {
@@ -243,14 +302,14 @@ export const cardStyles = css`
     justify-content: space-between;
     gap: 10px;
     color: var(--secondary-text-color);
-    font-size: 0.76rem;
+    font-size: 0.74rem;
   }
 
   .hero-bottom {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 10px;
+    gap: 8px;
     flex-wrap: wrap;
   }
 
@@ -258,7 +317,7 @@ export const cardStyles = css`
   .hero-actions-inline {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     flex-wrap: wrap;
   }
 
@@ -268,13 +327,13 @@ export const cardStyles = css`
 
   .hero-ghost {
     position: absolute;
-    right: -10px;
-    bottom: -12px;
+    right: 6px;
+    bottom: 8px;
     display: grid;
     place-items: center;
-    width: 120px;
-    height: 120px;
-    opacity: 0.14;
+    width: 92px;
+    height: 92px;
+    opacity: 0.07;
     pointer-events: none;
   }
 
@@ -282,11 +341,11 @@ export const cardStyles = css`
     width: 100%;
     height: 100%;
     object-fit: cover;
-    filter: saturate(0.7);
+    filter: saturate(0.45);
   }
 
   .hero-ghost-icon {
-    --mdc-icon-size: 84px;
+    --mdc-icon-size: 64px;
   }
 
   .icon-button,
@@ -301,22 +360,18 @@ export const cardStyles = css`
   .icon-button {
     display: inline-grid;
     place-items: center;
-    width: 40px;
-    height: 40px;
+    width: 38px;
+    height: 38px;
     padding: 0;
-    border: 0;
+    border: 1px solid var(--nodalia-outline);
     border-radius: 50%;
-    background:
-      linear-gradient(
-        180deg,
-        rgba(255, 255, 255, 0.18),
-        rgba(255, 255, 255, 0.08)
-      );
+    background: var(--nodalia-control-bg);
     color: inherit;
     cursor: pointer;
     transition:
       transform 0.18s ease,
-      background 0.18s ease;
+      background 0.18s ease,
+      border-color 0.18s ease;
   }
 
   .icon-button:hover,
@@ -330,20 +385,23 @@ export const cardStyles = css`
   }
 
   .icon-button.primary {
-    background: color-mix(in srgb, var(--nodalia-accent) 28%, white 8%);
+    background:
+      color-mix(in srgb, var(--nodalia-accent) 12%, var(--nodalia-control-bg-strong));
+    border-color:
+      color-mix(in srgb, var(--nodalia-accent) 18%, var(--nodalia-outline));
   }
 
   .icon-button.subtle {
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--nodalia-control-bg);
   }
 
   .icon-button.small {
-    width: 38px;
-    height: 38px;
+    width: 36px;
+    height: 36px;
   }
 
   .icon-button ha-icon {
-    --mdc-icon-size: 19px;
+    --mdc-icon-size: 18px;
   }
 
   .entity-row,
@@ -371,25 +429,29 @@ export const cardStyles = css`
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    min-height: 38px;
-    padding: 0.58rem 0.9rem;
-    border: 0;
+    min-height: 36px;
+    padding: 0.54rem 0.85rem;
+    border: 1px solid transparent;
     border-radius: 999px;
-    background: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
+    background: var(--nodalia-chip-bg);
     color: inherit;
     white-space: nowrap;
     cursor: pointer;
     transition:
       transform 0.18s ease,
       background 0.18s ease,
+      border-color 0.18s ease,
       color 0.18s ease;
   }
 
   .entity-chip.selected,
   .source-chip.selected,
   .group-chip.joined {
-    background: color-mix(in srgb, var(--nodalia-accent) 18%, transparent);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--nodalia-accent) 24%, transparent);
+    background:
+      color-mix(in srgb, var(--nodalia-accent) 10%, var(--nodalia-chip-bg));
+    border-color:
+      color-mix(in srgb, var(--nodalia-accent) 16%, var(--nodalia-outline));
+    box-shadow: none;
   }
 
   .entity-chip.playing::before,
@@ -398,11 +460,12 @@ export const cardStyles = css`
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: color-mix(in srgb, var(--nodalia-accent) 70%, white);
+    background: color-mix(in srgb, var(--nodalia-accent) 42%, white 58%);
   }
 
   .action-chip {
-    background: color-mix(in srgb, var(--nodalia-accent) 10%, transparent);
+    background: var(--nodalia-control-bg);
+    border-color: var(--nodalia-outline);
   }
 
   .chip-label,
@@ -416,10 +479,10 @@ export const cardStyles = css`
   .transport-shell,
   .slider-shell,
   .section {
-    padding: 13px;
-    border-radius: 20px;
-    background: color-mix(in srgb, var(--primary-text-color) 3%, transparent);
-    border: 1px solid color-mix(in srgb, var(--primary-text-color) 6%, transparent);
+    padding: 12px;
+    border-radius: 18px;
+    background: var(--nodalia-surface-soft);
+    border: 1px solid var(--nodalia-outline);
   }
 
   .transport-shell {
@@ -439,7 +502,7 @@ export const cardStyles = css`
   .section-header h3,
   .transport-header h3 {
     margin: 0;
-    font-size: 0.96rem;
+    font-size: 0.94rem;
     font-weight: 700;
   }
 
@@ -447,7 +510,7 @@ export const cardStyles = css`
   .transport-header p {
     margin: 2px 0 0;
     color: var(--secondary-text-color);
-    font-size: 0.82rem;
+    font-size: 0.8rem;
   }
 
   .transport-main {
@@ -465,12 +528,12 @@ export const cardStyles = css`
   }
 
   .play-button {
-    width: 58px;
-    height: 58px;
+    width: 52px;
+    height: 52px;
   }
 
   .play-button ha-icon {
-    --mdc-icon-size: 28px;
+    --mdc-icon-size: 24px;
   }
 
   .transport-side {
@@ -489,13 +552,13 @@ export const cardStyles = css`
     justify-content: space-between;
     gap: 10px;
     color: var(--secondary-text-color);
-    font-size: 0.82rem;
+    font-size: 0.8rem;
   }
 
   input[type="range"] {
     width: 100%;
     margin: 0;
-    accent-color: var(--nodalia-accent);
+    accent-color: color-mix(in srgb, var(--nodalia-accent) 68%, white 32%);
   }
 
   .section {
@@ -506,20 +569,21 @@ export const cardStyles = css`
   .detail-grid {
     display: grid;
     gap: 10px;
-    grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
   }
 
   .detail-card {
     display: grid;
     gap: 4px;
     padding: 12px;
+    border: 1px solid var(--nodalia-outline);
     border-radius: 16px;
-    background: rgba(255, 255, 255, 0.04);
+    background: var(--nodalia-control-bg);
   }
 
   .detail-label {
     color: var(--secondary-text-color);
-    font-size: 0.78rem;
+    font-size: 0.76rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
@@ -541,9 +605,10 @@ export const cardStyles = css`
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 10px;
     align-items: center;
-    padding: 10px;
-    border-radius: 18px;
-    background: rgba(255, 255, 255, 0.04);
+    padding: 9px;
+    border: 1px solid transparent;
+    border-radius: 16px;
+    background: var(--nodalia-control-bg);
   }
 
   .queue-item-main {
@@ -559,15 +624,18 @@ export const cardStyles = css`
   }
 
   .queue-row.playing {
-    background: color-mix(in srgb, var(--nodalia-accent) 14%, transparent);
+    background:
+      color-mix(in srgb, var(--nodalia-accent) 10%, var(--nodalia-control-bg));
+    border-color:
+      color-mix(in srgb, var(--nodalia-accent) 14%, var(--nodalia-outline));
   }
 
   .queue-thumb {
-    width: 52px;
-    height: 52px;
+    width: 48px;
+    height: 48px;
     overflow: hidden;
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    background: var(--nodalia-surface);
   }
 
   .queue-thumb img {
@@ -595,24 +663,26 @@ export const cardStyles = css`
 
   .queue-subtitle {
     color: var(--secondary-text-color);
-    font-size: 0.84rem;
+    font-size: 0.82rem;
   }
 
   .queue-row .icon-button {
-    width: 36px;
-    height: 36px;
+    width: 34px;
+    height: 34px;
   }
 
-  .queue-empty {
+  .queue-empty,
+  .queue-loading,
+  .notice {
     color: var(--secondary-text-color);
-    font-size: 0.9rem;
+    font-size: 0.88rem;
   }
 
   .queue-clear {
-    padding: 0.5rem 0.8rem;
-    border: 0;
+    padding: 0.46rem 0.76rem;
+    border: 1px solid var(--nodalia-outline);
     border-radius: 999px;
-    background: color-mix(in srgb, var(--nodalia-accent) 10%, transparent);
+    background: var(--nodalia-chip-bg);
     color: inherit;
     cursor: pointer;
   }
@@ -622,50 +692,46 @@ export const cardStyles = css`
   }
 
   .collapsed .hero {
-    padding: 14px;
+    padding: 13px;
   }
 
   .collapsed .artwork-button {
-    width: 72px;
-    height: 72px;
+    width: 68px;
+    height: 68px;
     border-radius: 18px;
   }
 
   .collapsed .hero-title {
-    font-size: 1.12rem;
+    font-size: 1.08rem;
   }
 
   .notice {
     padding: 16px;
-    color: var(--secondary-text-color);
-  }
-
-  .queue-loading {
-    color: var(--secondary-text-color);
-    font-size: 0.88rem;
   }
 
   @media (max-width: 640px) {
     .shell {
-      padding: 10px;
+      padding: 9px;
     }
 
     .hero-layout {
-      grid-template-columns: 72px minmax(0, 1fr);
-      gap: 12px;
+      grid-template-columns: 68px minmax(0, 1fr);
+      gap: 10px;
     }
 
     .artwork-button {
-      width: 72px;
-      height: 72px;
+      width: 68px;
+      height: 68px;
       border-radius: 18px;
     }
 
+    .hero-title {
+      font-size: 1.08rem;
+    }
+
     .hero-ghost {
-      width: 96px;
-      height: 96px;
-      right: -8px;
-      bottom: -10px;
+      width: 82px;
+      height: 82px;
     }
   }
 `;

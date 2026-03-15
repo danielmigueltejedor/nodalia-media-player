@@ -1350,14 +1350,24 @@ export class NodaliaMediaPlayer extends LitElement {
 
     const collapsed =
       this._config.behavior.collapse_when_idle && isIdleLike(active.stateObj);
-    const accent = active.config.accent_color ?? this._config.appearance.accent_color;
+    const accent =
+      active.config.accent_color &&
+      active.config.accent_color !== "var(--state-media-player-active-color, var(--primary-color))"
+        ? active.config.accent_color
+        : this._config.appearance.accent_color;
+    const theme =
+      this._config.appearance.theme === "auto"
+        ? this.hass?.themes?.darkMode
+          ? "dark"
+          : "light"
+        : this._config.appearance.theme;
 
     return html`
       <ha-card
         class=${classMap({
           collapsed,
-          "theme-dark": this._config.appearance.theme === "dark",
-          "theme-light": this._config.appearance.theme === "light",
+          "theme-dark": theme === "dark",
+          "theme-light": theme === "light",
         })}
         style=${styleMap({
           "--nodalia-accent": accent,

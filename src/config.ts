@@ -93,9 +93,11 @@ export interface NormalizedConfig
 export const DEFAULT_APPEARANCE: Required<AppearanceConfig> = {
   artwork_fit: "cover",
   theme: "auto",
-  accent_color: "var(--state-media-player-active-color, var(--primary-color))",
-  blur_background: true,
+  accent_color: "var(--primary-text-color)",
+  blur_background: false,
 };
+
+const LEGACY_DEFAULT_ACCENT = "var(--state-media-player-active-color, var(--primary-color))";
 
 export const DEFAULT_BEHAVIOR: Required<BehaviorConfig> = {
   auto_select_active: true,
@@ -139,14 +141,26 @@ export function normalizeConfig(
     throw new Error("You need to define at least one media player entity.");
   }
 
+  const accentWasLegacy =
+    !config.appearance?.accent_color ||
+    config.appearance.accent_color === LEGACY_DEFAULT_ACCENT;
+  const appearance: Required<AppearanceConfig> = {
+    ...DEFAULT_APPEARANCE,
+    ...(config.appearance ?? {}),
+    accent_color: accentWasLegacy
+      ? DEFAULT_APPEARANCE.accent_color
+      : config.appearance?.accent_color ?? DEFAULT_APPEARANCE.accent_color,
+    blur_background:
+      accentWasLegacy && config.appearance?.blur_background === true
+        ? DEFAULT_APPEARANCE.blur_background
+        : config.appearance?.blur_background ?? DEFAULT_APPEARANCE.blur_background,
+  };
+
   return {
     ...config,
     entities,
     language: config.language ?? "auto",
-    appearance: {
-      ...DEFAULT_APPEARANCE,
-      ...(config.appearance ?? {}),
-    },
+    appearance,
     behavior: {
       ...DEFAULT_BEHAVIOR,
       ...(config.behavior ?? {}),
