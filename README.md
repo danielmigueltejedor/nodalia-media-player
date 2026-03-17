@@ -6,6 +6,7 @@ Tarjeta `custom:nodalia-media-player` para Home Assistant creada desde cero con 
 
 - Estetica suave y compacta para integrarse bien con dashboards basados en Mushroom.
 - Control multi-entidad en una sola tarjeta con chips horizontales.
+- Visible siempre por defecto, aunque no haya reproduccion activa.
 - Auto-seleccion de la entidad que esta reproduciendo.
 - Controles principales de transporte, encendido y mute.
 - Seek y volumen con sliders nativos.
@@ -13,7 +14,7 @@ Tarjeta `custom:nodalia-media-player` para Home Assistant creada desde cero con 
 - Agrupacion rapida con `media_player.join` y `media_player.unjoin`.
 - Cola opcional usando `mass_queue` si esta disponible.
 - Chips de acciones personalizadas con plantillas simples.
-- Editor visual basico.
+- Editor visual para configuracion general, layout, players, haptics y estilos base.
 - Traducciones integradas priorizando `es`, con `en` como respaldo.
 
 ## Instalacion para desarrollo
@@ -94,28 +95,17 @@ actions:
 
 ## Editor visual
 
-El editor usa una sintaxis compacta para la lista de reproductores:
+La tarjeta ya expone editor visual en Home Assistant.
 
-```text
-media_player.salon | Salon | mdi:speaker-wireless | media_player.soundbar | #8ec5ff
-media_player.cocina | Cocina | mdi:speaker
-```
+Desde la UI puedes configurar:
 
-Formato:
+- Ajustes generales de la tarjeta.
+- Layout fijo o normal.
+- Lista de reproductores con anadir, eliminar y reordenar.
+- Haptics.
+- Estilos base del player y del browser.
 
-```text
-entidad | nombre | icono | volume_entity | color
-```
-
-Las acciones avanzadas se editan como JSON. Puedes usar estas variables en `service_data`, `navigation_path` o `url_path`:
-
-- `{{ entity }}`
-- `{{ media_title }}`
-- `{{ media_artist }}`
-- `{{ media_album }}`
-- `{{ source }}`
-- `{{ app_name }}`
-- `{{ friendly_name }}`
+La configuracion avanzada sigue pudiendose hacer por YAML cuando necesites afinar mas.
 
 ## Hoja de ruta natural para la siguiente iteracion
 

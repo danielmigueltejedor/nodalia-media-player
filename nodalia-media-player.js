@@ -1,4 +1,5 @@
 const CARD_TAG = "nodalia-media-player";
+const EDITOR_TAG = "nodalia-media-player-editor";
 const CARD_VERSION = "0.1.0";
 const HAPTIC_PATTERNS = {
   selection: 8,
@@ -75,7 +76,7 @@ const DEFAULT_CONFIG = {
   title: "",
   entity: "",
   players: [],
-  show: undefined,
+  show: true,
   album_cover_background: true,
   haptics: {
     enabled: false,
@@ -172,6 +173,92 @@ function mergeConfig(base, override) {
   return result;
 }
 
+function compactConfig(value) {
+  if (Array.isArray(value)) {
+    return value
+      .map(item => compactConfig(item))
+      .filter(item => item !== undefined);
+  }
+
+  if (isObject(value)) {
+    const compacted = {};
+
+    Object.entries(value).forEach(([key, item]) => {
+      const cleaned = compactConfig(item);
+      const isEmptyObject = isObject(cleaned) && Object.keys(cleaned).length === 0;
+
+      if (cleaned !== undefined && !isEmptyObject) {
+        compacted[key] = cleaned;
+      }
+    });
+
+    return compacted;
+  }
+
+  if (value === "" || value === null || value === undefined) {
+    return undefined;
+  }
+
+  return value;
+}
+
+function setByPath(target, path, value) {
+  const parts = path.split(".");
+  let cursor = target;
+
+  for (let index = 0; index < parts.length - 1; index += 1) {
+    const key = parts[index];
+    if (!isObject(cursor[key]) && !Array.isArray(cursor[key])) {
+      cursor[key] = /^\d+$/.test(parts[index + 1]) ? [] : {};
+    }
+    cursor = cursor[key];
+  }
+
+  cursor[parts[parts.length - 1]] = value;
+}
+
+function deleteByPath(target, path) {
+  const parts = path.split(".");
+  let cursor = target;
+
+  for (let index = 0; index < parts.length - 1; index += 1) {
+    const key = parts[index];
+    if (!isObject(cursor[key]) && !Array.isArray(cursor[key])) {
+      return;
+    }
+    cursor = cursor[key];
+  }
+
+  delete cursor[parts[parts.length - 1]];
+}
+
+function arrayFromCsv(value) {
+  return String(value || "")
+    .split(",")
+    .map(item => item.trim())
+    .filter(Boolean);
+}
+
+function moveItem(array, fromIndex, toIndex) {
+  if (!Array.isArray(array)) {
+    return array;
+  }
+
+  if (
+    fromIndex < 0 ||
+    toIndex < 0 ||
+    fromIndex >= array.length ||
+    toIndex >= array.length ||
+    fromIndex === toIndex
+  ) {
+    return array;
+  }
+
+  const [item] = array.splice(fromIndex, 1);
+  array.splice(toIndex, 0, item);
+  return array;
+}
+
 function fireEvent(node, type, detail, options) {
   const event = new CustomEvent(type, {
     bubbles: options?.bubbles ?? true,
@@ -258,6 +345,10 @@ function normalizeConfig(rawConfig) {
 }
 
 class NodaliaMediaPlayer extends HTMLElement {
+  static async getConfigElement() {
+    return document.createElement(EDITOR_TAG);
+  }
+
   static getStubConfig() {
     return {
       title: "Nodalia Media Player",
@@ -2102,10 +2193,617 @@ if (!customElements.get(CARD_TAG)) {
   customElements.define(CARD_TAG, NodaliaMediaPlayer);
 }
 
+class NodaliaMediaPlayerEditor extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: "open" });
+    this._config = normalizeConfig(NodaliaMediaPlayer.getStubConfig());
+    this._hass = null;
+    this._onShadowInput = this._onShadowInput.bind(this);
+    this._onShadowClick = this._onShadowClick.bind(this);
+    this.shadowRoot.addEventListener("input", this._onShadowInput);
+    this.shadowRoot.addEventListener("change", this._onShadowInput);
+    this.shadowRoot.addEventListener("click", this._onShadowClick);
+  }
+
+  set hass(hass) {
+    this._hass = hass;
+    this._render();
+  }
+
+  setConfig(config) {
+    this._config = normalizeConfig(config || {});
+    this._render();
+  }
+
+  _emitConfig() {
+    const nextConfig = deepClone(this._config);
+
+    if (!Array.isArray(nextConfig.players)) {
+      nextConfig.players = [];
+    }
+
+    delete nextConfig.entity;
+    fireEvent(this, "config-changed", {
+      config: compactConfig(nextConfig),
+    });
+  }
+
+  _setFieldValue(path, value) {
+    if (value === undefined || value === null || value === "") {
+      deleteByPath(this._config, path);
+      return;
+    }
+
+    setByPath(this._config, path, value);
+  }
+
+  _readFieldValue(input) {
+    const valueType = input.dataset.valueType || "string";
+
+    switch (valueType) {
+      case "boolean":
+        return Boolean(input.checked);
+      case "number": {
+        const trimmed = String(input.value || "").trim();
+        if (!trimmed) {
+          return undefined;
+        }
+
+        const parsed = Number(trimmed);
+        return Number.isFinite(parsed) ? parsed : trimmed;
+      }
+      case "csv": {
+        const values = arrayFromCsv(input.value);
+        return values.length ? values : undefined;
+      }
+      case "tristate":
+        if (input.value === "true") {
+          return true;
+        }
+
+        if (input.value === "false") {
+          return false;
+        }
+
+        return undefined;
+      default:
+        return input.value;
+    }
+  }
+
+  _onShadowInput(event) {
+    const input = event
+      .composedPath()
+      .find(node => node instanceof HTMLInputElement || node instanceof HTMLSelectElement || node instanceof HTMLTextAreaElement);
+
+    if (!input?.dataset?.field) {
+      return;
+    }
+
+    const nextValue = this._readFieldValue(input);
+    this._setFieldValue(input.dataset.field, nextValue);
+    this._emitConfig();
+  }
+
+  _onShadowClick(event) {
+    const button = event
+      .composedPath()
+      .find(node => node instanceof HTMLButtonElement && node.dataset?.action);
+
+    if (!button) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const action = button.dataset.action;
+    const index = Number(button.dataset.index);
+
+    if (action === "add-player") {
+      this._config.players = Array.isArray(this._config.players) ? this._config.players : [];
+      this._config.players.push({
+        entity: "",
+        label: "",
+      });
+      this._emitConfig();
+      this._render();
+      return;
+    }
+
+    if (!Number.isInteger(index) || index < 0 || index >= this._config.players.length) {
+      return;
+    }
+
+    if (action === "remove-player") {
+      this._config.players.splice(index, 1);
+      this._emitConfig();
+      this._render();
+      return;
+    }
+
+    if (action === "move-player-up") {
+      moveItem(this._config.players, index, index - 1);
+      this._emitConfig();
+      this._render();
+      return;
+    }
+
+    if (action === "move-player-down") {
+      moveItem(this._config.players, index, index + 1);
+      this._emitConfig();
+      this._render();
+    }
+  }
+
+  _renderTextField(label, field, value, options = {}) {
+    const tag = options.multiline ? "textarea" : "input";
+    const inputType = options.type || "text";
+    const placeholder = options.placeholder ? `placeholder="${escapeHtml(options.placeholder)}"` : "";
+    const valueType = options.valueType || "string";
+    const inputValue = value === undefined || value === null ? "" : String(value);
+
+    if (tag === "textarea") {
+      return `
+        <label class="editor-field editor-field--full">
+          <span>${escapeHtml(label)}</span>
+          <textarea data-field="${escapeHtml(field)}" data-value-type="${escapeHtml(valueType)}" rows="${options.rows || 2}" ${placeholder}>${escapeHtml(inputValue)}</textarea>
+        </label>
+      `;
+    }
+
+    return `
+      <label class="editor-field ${options.fullWidth ? "editor-field--full" : ""}">
+        <span>${escapeHtml(label)}</span>
+        <input
+          type="${escapeHtml(inputType)}"
+          data-field="${escapeHtml(field)}"
+          data-value-type="${escapeHtml(valueType)}"
+          value="${escapeHtml(inputValue)}"
+          ${placeholder}
+        />
+      </label>
+    `;
+  }
+
+  _renderCheckboxField(label, field, checked) {
+    return `
+      <label class="editor-toggle">
+        <input
+          type="checkbox"
+          data-field="${escapeHtml(field)}"
+          data-value-type="boolean"
+          ${checked ? "checked" : ""}
+        />
+        <span>${escapeHtml(label)}</span>
+      </label>
+    `;
+  }
+
+  _renderSelectField(label, field, value, options, valueType = "string") {
+    return `
+      <label class="editor-field">
+        <span>${escapeHtml(label)}</span>
+        <select data-field="${escapeHtml(field)}" data-value-type="${escapeHtml(valueType)}">
+          ${options
+            .map(option => {
+              const optionValue = option.value === undefined ? "auto" : String(option.value);
+              const isSelected =
+                value === option.value ||
+                (option.value === undefined && value === undefined);
+
+              return `
+                <option value="${escapeHtml(optionValue)}" ${isSelected ? "selected" : ""}>
+                  ${escapeHtml(option.label)}
+                </option>
+              `;
+            })
+            .join("")}
+        </select>
+      </label>
+    `;
+  }
+
+  _renderPlayerCard(player, index) {
+    return `
+      <div class="player-editor-card">
+        <div class="player-editor-card__header">
+          <div class="player-editor-card__title">Reproductor ${index + 1}</div>
+          <div class="player-editor-card__actions">
+            <button type="button" data-action="move-player-up" data-index="${index}" ${index === 0 ? "disabled" : ""}>Subir</button>
+            <button type="button" data-action="move-player-down" data-index="${index}" ${index === this._config.players.length - 1 ? "disabled" : ""}>Bajar</button>
+            <button type="button" data-action="remove-player" data-index="${index}" class="danger">Eliminar</button>
+          </div>
+        </div>
+        <div class="editor-grid">
+          ${this._renderTextField("Entidad", `players.${index}.entity`, player.entity, {
+            placeholder: "media_player.salon",
+          })}
+          ${this._renderTextField("Nombre corto", `players.${index}.label`, player.label, {
+            placeholder: "Salon",
+          })}
+          ${this._renderTextField("Titulo fijo", `players.${index}.title`, player.title)}
+          ${this._renderTextField("Subtitulo fijo", `players.${index}.subtitle`, player.subtitle)}
+          ${this._renderTextField("Icono", `players.${index}.icon`, player.icon, {
+            placeholder: "mdi:speaker",
+          })}
+          ${this._renderTextField("Imagen", `players.${index}.image`, player.image, {
+            placeholder: "/local/cover.png",
+          })}
+          ${this._renderTextField("Ruta medios", `players.${index}.browse_path`, player.browse_path, {
+            placeholder: "/media-browser/browser",
+          })}
+          ${this._renderSelectField(
+            "Visibilidad",
+            `players.${index}.show`,
+            player.show,
+            [
+              { value: undefined, label: "Automatica" },
+              { value: true, label: "Siempre" },
+              { value: false, label: "Nunca" },
+            ],
+            "tristate",
+          )}
+          ${this._renderTextField("Estados visibles", `players.${index}.show_states`, Array.isArray(player.show_states) ? player.show_states.join(", ") : "", {
+            placeholder: "playing, paused",
+            valueType: "csv",
+            fullWidth: true,
+          })}
+        </div>
+      </div>
+    `;
+  }
+
+  _getEntityOptionsMarkup() {
+    const entityIds = Object.keys(this._hass?.states || {})
+      .filter(entityId => entityId.startsWith("media_player."))
+      .sort((left, right) => left.localeCompare(right, "es"));
+
+    if (!entityIds.length) {
+      return "";
+    }
+
+    return `
+      <datalist id="media-player-entities">
+        ${entityIds.map(entityId => `<option value="${escapeHtml(entityId)}"></option>`).join("")}
+      </datalist>
+    `;
+  }
+
+  _render() {
+    if (!this.shadowRoot) {
+      return;
+    }
+
+    const config = this._config || normalizeConfig({});
+    const hapticStyle = config.haptics?.style || "selection";
+
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host {
+          display: block;
+        }
+
+        * {
+          box-sizing: border-box;
+        }
+
+        .editor {
+          color: var(--primary-text-color);
+          display: grid;
+          gap: 16px;
+        }
+
+        .editor-section {
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          border-radius: 18px;
+          display: grid;
+          gap: 14px;
+          padding: 16px;
+        }
+
+        .editor-section__header {
+          display: grid;
+          gap: 4px;
+        }
+
+        .editor-section__title {
+          font-size: 15px;
+          font-weight: 700;
+        }
+
+        .editor-section__hint {
+          color: var(--secondary-text-color);
+          font-size: 12px;
+          line-height: 1.45;
+        }
+
+        .editor-grid {
+          display: grid;
+          gap: 12px;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .editor-field,
+        .editor-toggle {
+          display: grid;
+          gap: 6px;
+          min-width: 0;
+        }
+
+        .editor-field--full {
+          grid-column: 1 / -1;
+        }
+
+        .editor-field > span,
+        .editor-toggle > span {
+          font-size: 12px;
+          font-weight: 600;
+        }
+
+        .editor-field input,
+        .editor-field select,
+        .editor-field textarea {
+          appearance: none;
+          background: rgba(255, 255, 255, 0.04);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 12px;
+          color: var(--primary-text-color);
+          font: inherit;
+          min-height: 40px;
+          padding: 10px 12px;
+          width: 100%;
+        }
+
+        .editor-field textarea {
+          min-height: 72px;
+          resize: vertical;
+        }
+
+        .editor-toggle {
+          align-items: center;
+          grid-template-columns: auto 1fr;
+          padding-top: 20px;
+        }
+
+        .editor-toggle input {
+          accent-color: var(--primary-color);
+          height: 18px;
+          margin: 0;
+          width: 18px;
+        }
+
+        .editor-actions {
+          display: flex;
+          justify-content: flex-start;
+        }
+
+        button {
+          appearance: none;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 999px;
+          color: var(--primary-text-color);
+          cursor: pointer;
+          font: inherit;
+          font-size: 12px;
+          font-weight: 700;
+          min-height: 34px;
+          padding: 0 12px;
+        }
+
+        button.danger {
+          color: var(--error-color);
+        }
+
+        button:disabled {
+          cursor: default;
+          opacity: 0.45;
+        }
+
+        .player-editor-list {
+          display: grid;
+          gap: 12px;
+        }
+
+        .player-editor-card {
+          background: rgba(255, 255, 255, 0.025);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          border-radius: 16px;
+          display: grid;
+          gap: 12px;
+          padding: 14px;
+        }
+
+        .player-editor-card__header {
+          align-items: center;
+          display: flex;
+          gap: 10px;
+          justify-content: space-between;
+        }
+
+        .player-editor-card__title {
+          font-size: 13px;
+          font-weight: 700;
+        }
+
+        .player-editor-card__actions {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          justify-content: flex-end;
+        }
+
+        .empty-note {
+          color: var(--secondary-text-color);
+          font-size: 12px;
+          line-height: 1.5;
+        }
+
+        @media (max-width: 640px) {
+          .editor-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .editor-toggle {
+            padding-top: 0;
+          }
+
+          .player-editor-card__header {
+            align-items: start;
+            flex-direction: column;
+          }
+
+          .player-editor-card__actions {
+            justify-content: flex-start;
+          }
+        }
+      </style>
+      <div class="editor">
+        <section class="editor-section">
+          <div class="editor-section__header">
+            <div class="editor-section__title">General</div>
+            <div class="editor-section__hint">Configuracion basica de la tarjeta y comportamiento general del reproductor.</div>
+          </div>
+          <div class="editor-grid">
+            ${this._renderTextField("Titulo", "title", config.title)}
+            ${this._renderSelectField(
+              "Mostrar tarjeta",
+              "show",
+              config.show,
+              [
+                { value: undefined, label: "Automatico" },
+                { value: true, label: "Siempre" },
+                { value: false, label: "Nunca" },
+              ],
+              "tristate",
+            )}
+            ${this._renderCheckboxField("Fondo con caratula", "album_cover_background", config.album_cover_background !== false)}
+            ${this._renderCheckboxField("Mostrar en escritorio", "layout.show_desktop", config.layout.show_desktop === true)}
+          </div>
+        </section>
+
+        <section class="editor-section">
+          <div class="editor-section__header">
+            <div class="editor-section__title">Layout</div>
+            <div class="editor-section__hint">Ideal para usarlo como tarjeta fija abajo o arriba del dashboard.</div>
+          </div>
+          <div class="editor-grid">
+            ${this._renderCheckboxField("Fija", "layout.fixed", config.layout.fixed === true)}
+            ${this._renderCheckboxField("Reservar espacio", "layout.reserve_space", config.layout.reserve_space === true)}
+            ${this._renderSelectField(
+              "Posicion",
+              "layout.position",
+              config.layout.position,
+              [
+                { value: "bottom", label: "Abajo" },
+                { value: "top", label: "Arriba" },
+              ],
+            )}
+            ${this._renderTextField("Altura reservada", "layout.reserve_height", config.layout.reserve_height)}
+            ${this._renderTextField("Offset", "layout.offset", config.layout.offset)}
+            ${this._renderTextField("Margen lateral", "layout.side_margin", config.layout.side_margin)}
+            ${this._renderTextField("Ancho maximo", "layout.max_width", config.layout.max_width)}
+            ${this._renderTextField("Breakpoint movil", "layout.mobile_breakpoint", config.layout.mobile_breakpoint, {
+              type: "number",
+              valueType: "number",
+            })}
+            ${this._renderTextField("Z-index", "layout.z_index", config.layout.z_index, {
+              type: "number",
+              valueType: "number",
+            })}
+          </div>
+        </section>
+
+        <section class="editor-section">
+          <div class="editor-section__header">
+            <div class="editor-section__title">Players</div>
+            <div class="editor-section__hint">Anade, reordena y personaliza los reproductores visibles en la tarjeta.</div>
+          </div>
+          <div class="player-editor-list">
+            ${
+              Array.isArray(config.players) && config.players.length
+                ? config.players.map((player, index) => this._renderPlayerCard(player, index)).join("")
+                : '<div class="empty-note">No hay reproductores anadidos todavia.</div>'
+            }
+          </div>
+          <div class="editor-actions">
+            <button type="button" data-action="add-player">Anadir reproductor</button>
+          </div>
+        </section>
+
+        <section class="editor-section">
+          <div class="editor-section__header">
+            <div class="editor-section__title">Haptics</div>
+            <div class="editor-section__hint">Respuesta haptica opcional para los botones del player.</div>
+          </div>
+          <div class="editor-grid">
+            ${this._renderCheckboxField("Activar haptics", "haptics.enabled", config.haptics.enabled === true)}
+            ${this._renderCheckboxField("Fallback con vibracion", "haptics.fallback_vibrate", config.haptics.fallback_vibrate === true)}
+            ${this._renderSelectField(
+              "Estilo",
+              "haptics.style",
+              hapticStyle,
+              [
+                { value: "selection", label: "Selection" },
+                { value: "light", label: "Light" },
+                { value: "medium", label: "Medium" },
+                { value: "heavy", label: "Heavy" },
+                { value: "success", label: "Success" },
+                { value: "warning", label: "Warning" },
+                { value: "failure", label: "Failure" },
+              ],
+            )}
+          </div>
+        </section>
+
+        <section class="editor-section">
+          <div class="editor-section__header">
+            <div class="editor-section__title">Estilos</div>
+            <div class="editor-section__hint">Ajustes visuales del reproductor grande y del navegador de medios.</div>
+          </div>
+          <div class="editor-grid">
+            ${this._renderTextField("Background", "styles.player.background", config.styles.player.background)}
+            ${this._renderTextField("Border", "styles.player.border", config.styles.player.border)}
+            ${this._renderTextField("Radius", "styles.player.border_radius", config.styles.player.border_radius)}
+            ${this._renderTextField("Shadow", "styles.player.box_shadow", config.styles.player.box_shadow)}
+            ${this._renderTextField("Padding", "styles.player.padding", config.styles.player.padding)}
+            ${this._renderTextField("Altura minima", "styles.player.min_height", config.styles.player.min_height)}
+            ${this._renderTextField("Tamano portada", "styles.player.artwork_size", config.styles.player.artwork_size)}
+            ${this._renderTextField("Tamano controles", "styles.player.control_size", config.styles.player.control_size)}
+            ${this._renderTextField("Tamano titulo", "styles.player.title_size", config.styles.player.title_size)}
+            ${this._renderTextField("Tamano subtitulo", "styles.player.subtitle_size", config.styles.player.subtitle_size)}
+            ${this._renderTextField("Color progreso", "styles.player.progress_color", config.styles.player.progress_color)}
+            ${this._renderTextField("Fondo progreso", "styles.player.progress_background", config.styles.player.progress_background)}
+            ${this._renderTextField("Overlay portada", "styles.player.overlay_color", config.styles.player.overlay_color)}
+            ${this._renderTextField("Tamano dots", "styles.player.dot_size", config.styles.player.dot_size)}
+            ${this._renderTextField("Color acento", "styles.player.accent_color", config.styles.player.accent_color)}
+            ${this._renderTextField("Fondo acento", "styles.player.accent_background", config.styles.player.accent_background)}
+            ${this._renderTextField("Radius browser", "styles.browser.border_radius", config.styles.browser.border_radius)}
+            ${this._renderTextField("Background browser", "styles.browser.background", config.styles.browser.background)}
+          </div>
+        </section>
+        ${this._getEntityOptionsMarkup()}
+      </div>
+    `;
+
+    this.shadowRoot
+      .querySelectorAll('input[data-field^="players."][data-field$=".entity"]')
+      .forEach(input => {
+        input.setAttribute("list", "media-player-entities");
+      });
+  }
+}
+
+if (!customElements.get(EDITOR_TAG)) {
+  customElements.define(EDITOR_TAG, NodaliaMediaPlayerEditor);
+}
+
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: CARD_TAG,
   name: "Nodalia Media Player",
-  description: "Media player flotante y compacto con estetica Nodalia.",
+  description: "Media player fijo con estetica Nodalia y editor visual.",
   preview: true,
 });
