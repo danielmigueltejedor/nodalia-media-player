@@ -359,7 +359,6 @@ class NodaliaMediaPlayer extends HTMLElement {
 
   static getStubConfig() {
     return {
-      title: "Nodalia Media Player",
       players: [
         {
           entity: "media_player.spotify",
@@ -1558,9 +1557,6 @@ class NodaliaMediaPlayer extends HTMLElement {
     const isFixed = this._config.layout.fixed && !inEditMode;
     const spacerHeight = isFixed ? this._getReservedHeight(hasPlayers) : "0px";
     const mediaBrowserMarkup = this._renderMediaBrowser();
-    const titleMarkup = this._config.title
-      ? `<div class="card-title">${escapeHtml(this._config.title)}</div>`
-      : "";
 
     this._syncTicker(hasPlayers ? players : []);
 
@@ -1613,13 +1609,6 @@ class NodaliaMediaPlayer extends HTMLElement {
         .player-stack {
           display: grid;
           gap: 0;
-        }
-
-        .card-title {
-          color: var(--primary-text-color);
-          font-size: 13px;
-          font-weight: 700;
-          margin: 0 0 8px 8px;
         }
 
         .empty-card,
@@ -2206,7 +2195,6 @@ class NodaliaMediaPlayer extends HTMLElement {
       <div class="dock">
         <div class="dock-inner">
           <div class="player-stack">
-            ${titleMarkup}
             ${contentMarkup}
           </div>
         </div>
@@ -2777,7 +2765,6 @@ class NodaliaMediaPlayerEditor extends HTMLElement {
             <div class="editor-section__hint">Configuracion basica de la tarjeta y comportamiento general del reproductor.</div>
           </div>
           <div class="editor-grid">
-            ${this._renderTextField("Titulo", "title", config.title)}
             ${this._renderSelectField(
               "Mostrar tarjeta",
               "show",
