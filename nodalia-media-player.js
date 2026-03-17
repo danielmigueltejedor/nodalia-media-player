@@ -378,6 +378,7 @@ class NodaliaMediaPlayer extends HTMLElement {
     this._config = null;
     this._hass = null;
     this._mediaBrowserState = null;
+    this._mediaBrowserScrollPositions = new Map();
     this._mediaBrowserRequestToken = 0;
     this._activePlayerIndex = 0;
     this._mediaTicker = null;
@@ -623,6 +624,37 @@ class NodaliaMediaPlayer extends HTMLElement {
     return sourceLabel;
   }
 
+  _hasActiveMediaContent(state) {
+    if (!state?.attributes) {
+      return false;
+    }
+
+    return Boolean(
+      state.attributes.media_title ||
+      state.attributes.media_artist ||
+      state.attributes.media_album_name ||
+      state.attributes.media_series_title ||
+      state.attributes.media_channel ||
+      state.attributes.media_duration,
+    );
+  }
+
+  _shouldUseIdleLayout(player, state) {
+    if (!state) {
+      return false;
+    }
+
+    if (player?.compact_when_idle === false) {
+      return false;
+    }
+
+    if (this._hasActiveMediaContent(state)) {
+      return false;
+    }
+
+    return ["idle", "off", "standby", "paused", "unknown", "unavailable"].includes(state.state);
+  }
+
   _isMusicAssistantPlayer(player, state) {
     const candidates = [
       player?.entity,
@@ -686,6 +718,14 @@ class NodaliaMediaPlayer extends HTMLElement {
   }
 
   _syncTicker(players) {
+    if (this._mediaBrowserState) {
+      if (this._mediaTicker) {
+        window.clearInterval(this._mediaTicker);
+        this._mediaTicker = null;
+      }
+      return;
+    }
+
     const shouldTick = players.some(player => {
       const state = this._hass?.states?.[player.entity];
       const progress = state ? this._getPlayerProgress(state) : null;
@@ -764,6 +804,9 @@ class NodaliaMediaPlayer extends HTMLElement {
     }
 
     switch (control) {
+      case "play":
+        this._hass.callService("media_player", "media_play", { entity_id: entityId });
+        break;
       case "previous":
         this._hass.callService("media_player", "media_previous_track", { entity_id: entityId });
         break;
@@ -879,6 +922,7 @@ class NodaliaMediaPlayer extends HTMLElement {
     }
 
     this._mediaBrowserState = null;
+    this._mediaBrowserScrollPositions.clear();
     this._mediaBrowserRequestToken += 1;
 
     if (shouldRender) {
@@ -1058,6 +1102,61 @@ class NodaliaMediaPlayer extends HTMLElement {
 
     const key = normalizeTextKey(fallback);
     return MUSIC_ASSISTANT_LABEL_TRANSLATIONS[key] || fallback;
+  }
+
+  _getMediaBrowserViewKey(state = this._mediaBrowserState) {
+    const currentNode = state?.stack?.[state.stack.length - 1];
+    if (!currentNode) {
+      return "";
+    }
+
+    return [
+      state?.entityId || "",
+      currentNode.media_content_type || "",
+      currentNode.media_content_id || "",
+      currentNode.title || "",
+    ].join("::");
+  }
+
+  _captureMediaBrowserScrollState() {
+    if (!this.shadowRoot || !this._mediaBrowserState) {
+      return;
+    }
+
+    const list = this.shadowRoot.querySelector(".media-browser__list");
+    if (!(list instanceof HTMLElement)) {
+      return;
+    }
+
+    const viewKey = this._getMediaBrowserViewKey();
+    if (!viewKey) {
+      return;
+    }
+
+    this._mediaBrowserScrollPositions.set(viewKey, list.scrollTop);
+  }
+
+  _restoreMediaBrowserScrollState() {
+    if (!this.shadowRoot || !this._mediaBrowserState) {
+      return;
+    }
+
+    const list = this.shadowRoot.querySelector(".media-browser__list");
+    if (!(list instanceof HTMLElement)) {
+      return;
+    }
+
+    const viewKey = this._getMediaBrowserViewKey();
+    if (!viewKey) {
+      return;
+    }
+
+    const savedScrollTop = this._mediaBrowserScrollPositions.get(viewKey);
+    if (typeof savedScrollTop !== "number") {
+      return;
+    }
+
+    list.scrollTop = savedScrollTop;
   }
 
   _getMediaBrowserIcon(item) {
@@ -1349,6 +1448,7 @@ class NodaliaMediaPlayer extends HTMLElement {
     const playerLabel = this._getPlayerLabel(player, state);
     const statusLabel = this._getPlayerStateLabel(state.state);
     const browsePath = this._getPlayerBrowsePath(player, state);
+    const isIdleLayout = this._shouldUseIdleLayout(player, state);
     const volumeLevel = Number(state.attributes.volume_level ?? 0);
     const volumeSupported = this._supportsVolumeControl(state);
     const playerStyles = this._config.styles.player;
@@ -1433,7 +1533,7 @@ class NodaliaMediaPlayer extends HTMLElement {
       `
       : "";
     const infoRailMarkup = `
-      <div class="media-player__info-rail">
+      <div class="media-player__info-rail ${isIdleLayout ? "media-player__info-rail--idle" : ""}">
         ${
           playerLabel
             ? `
@@ -1448,6 +1548,55 @@ class NodaliaMediaPlayer extends HTMLElement {
         </span>
       </div>
     `;
+    const idleControlsMarkup = `
+      <div class="media-player__transport-row media-player__transport-row--idle">
+        <div class="media-player__transport-shell">
+          <div class="media-player__transport-cluster media-player__transport-cluster--idle">
+            ${volumeDownMarkup}
+            <button
+              type="button"
+              class="media-player__control media-player__control--primary"
+              data-media-control="play"
+              data-entity="${escapeHtml(player.entity)}"
+              aria-label="Reproducir"
+            >
+              <ha-icon icon="mdi:play"></ha-icon>
+            </button>
+            ${volumeUpMarkup}
+          </div>
+          ${browseMarkup}
+        </div>
+      </div>
+    `;
+
+    if (isIdleLayout) {
+      return `
+        <div
+          class="media-player-card media-player-card--idle ${this._config.album_cover_background && artwork ? "has-album-background" : ""}"
+          data-media-card-index="${this._activePlayerIndex}"
+        >
+          ${
+            this._config.album_cover_background && artwork
+              ? `<div class="media-player__album-bg" style="background-image:url('${escapeHtml(artwork)}');"></div>`
+              : ""
+          }
+          <div class="media-player__content media-player__content--idle">
+            <div class="media-player__idle-hero">
+              <div class="media-player__artwork media-player__artwork--idle">
+                ${
+                  artwork
+                    ? `<img src="${escapeHtml(artwork)}" alt="${escapeHtml(playerLabel)}" />`
+                    : `<ha-icon icon="${escapeHtml(player.icon || "mdi:music")}"></ha-icon>`
+                }
+              </div>
+              ${infoRailMarkup}
+            </div>
+            ${dotsMarkup ? `<div class="media-player__switcher media-player__switcher--idle">${dotsMarkup}</div>` : ""}
+            ${idleControlsMarkup}
+          </div>
+        </div>
+      `;
+    }
 
     return `
       <div
@@ -1541,6 +1690,8 @@ class NodaliaMediaPlayer extends HTMLElement {
       return;
     }
 
+    this._captureMediaBrowserScrollState();
+
     if (!this._config) {
       this.shadowRoot.innerHTML = "";
       return;
@@ -1617,6 +1768,7 @@ class NodaliaMediaPlayer extends HTMLElement {
           border: ${playerStyles.border};
           border-radius: ${playerStyles.border_radius};
           box-shadow: ${playerStyles.box_shadow};
+          isolation: isolate;
           min-height: ${playerStyles.min_height};
           overflow: hidden;
           padding: ${playerStyles.padding};
@@ -1647,7 +1799,7 @@ class NodaliaMediaPlayer extends HTMLElement {
           inset: 0;
           pointer-events: none;
           position: absolute;
-          z-index: 0;
+          z-index: 1;
         }
 
         .media-player-card.has-album-background::after {
@@ -1660,7 +1812,7 @@ class NodaliaMediaPlayer extends HTMLElement {
           content: "";
           inset: 0;
           position: absolute;
-          z-index: 0;
+          z-index: 2;
         }
 
         .media-player__album-bg {
@@ -1668,10 +1820,10 @@ class NodaliaMediaPlayer extends HTMLElement {
           background-size: cover;
           filter: blur(30px) saturate(0.82);
           inset: -24px;
-          opacity: 0.38;
+          opacity: 0.42;
           position: absolute;
           transform: scale(1.14);
-          z-index: -1;
+          z-index: 0;
         }
 
         .media-player__progress {
@@ -1682,7 +1834,7 @@ class NodaliaMediaPlayer extends HTMLElement {
           inset-inline: 12px;
           overflow: hidden;
           position: absolute;
-          z-index: 1;
+          z-index: 3;
         }
 
         .media-player__progress-fill {
@@ -1694,7 +1846,7 @@ class NodaliaMediaPlayer extends HTMLElement {
         .media-player__content,
         .media-player__dots {
           position: relative;
-          z-index: 1;
+          z-index: 3;
         }
 
         .media-player__content {
@@ -1704,11 +1856,28 @@ class NodaliaMediaPlayer extends HTMLElement {
           padding-bottom: 10px;
         }
 
+        .media-player__content--idle {
+          gap: 8px;
+          padding-bottom: 4px;
+        }
+
+        .media-player-card--idle {
+          min-height: 112px;
+        }
+
         .media-player__hero {
           align-items: start;
           display: grid;
           gap: 12px;
           grid-template-columns: ${playerStyles.artwork_size} minmax(0, 1fr);
+        }
+
+        .media-player__idle-hero {
+          align-items: center;
+          display: grid;
+          gap: 12px;
+          grid-template-columns: 56px minmax(0, 1fr);
+          min-width: 0;
         }
 
         .media-player__hero-copy {
@@ -1735,6 +1904,12 @@ class NodaliaMediaPlayer extends HTMLElement {
           pointer-events: none;
         }
 
+        .media-player__info-rail--idle {
+          gap: 4px;
+          justify-items: start;
+          max-width: none;
+        }
+
         .media-player__artwork {
           align-items: center;
           background: rgba(255, 255, 255, 0.08);
@@ -1746,6 +1921,12 @@ class NodaliaMediaPlayer extends HTMLElement {
           justify-content: center;
           overflow: hidden;
           width: ${playerStyles.artwork_size};
+        }
+
+        .media-player__artwork--idle {
+          border-radius: 18px;
+          height: 56px;
+          width: 56px;
         }
 
         .media-player__artwork img,
@@ -1796,11 +1977,19 @@ class NodaliaMediaPlayer extends HTMLElement {
           width: 100%;
         }
 
+        .media-player__switcher--idle {
+          margin-top: -2px;
+        }
+
         .media-player__transport-row {
           align-items: center;
           display: flex;
           justify-content: center;
           width: 100%;
+        }
+
+        .media-player__transport-row--idle {
+          justify-content: flex-start;
         }
 
         .media-player__transport-shell {
@@ -1817,6 +2006,10 @@ class NodaliaMediaPlayer extends HTMLElement {
           gap: 8px;
           justify-content: center;
           width: auto;
+        }
+
+        .media-player__transport-cluster--idle {
+          gap: 8px;
         }
 
         .media-player__transport-addon {
@@ -1885,6 +2078,12 @@ class NodaliaMediaPlayer extends HTMLElement {
           justify-content: flex-end;
           max-width: 100%;
           text-align: right;
+        }
+
+        .media-player__info-rail--idle .media-player__chip--top,
+        .media-player__info-rail--idle .media-player__chip--status {
+          justify-content: flex-start;
+          text-align: left;
         }
 
         .media-player__chip--status {
@@ -2201,6 +2400,8 @@ class NodaliaMediaPlayer extends HTMLElement {
       </div>
       ${mediaBrowserMarkup}
     `;
+
+    this._restoreMediaBrowserScrollState();
   }
 }
 
@@ -2378,6 +2579,8 @@ class NodaliaMediaPlayerEditor extends HTMLElement {
     if (!input?.dataset?.field) {
       return;
     }
+
+    event.stopPropagation();
 
     const nextValue = this._readFieldValue(input);
     this._setFieldValue(input.dataset.field, nextValue);
