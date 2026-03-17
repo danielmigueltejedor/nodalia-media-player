@@ -1497,6 +1497,20 @@ class NodaliaMediaPlayer extends HTMLElement {
         </div>
       `
       : "";
+    const browseIdleMarkup = browsePath
+      ? `
+        <button
+          type="button"
+          class="media-player__volume-button media-player__volume-button--browse"
+          data-media-control="browse-media"
+          data-entity="${escapeHtml(player.entity)}"
+          data-media-path="${escapeHtml(browsePath)}"
+          aria-label="Abrir medios"
+        >
+          <ha-icon icon="mdi:music-box-multiple-outline"></ha-icon>
+        </button>
+      `
+      : "";
     const dotsMarkup = players.length > 1
       ? `
         <div class="media-player__dots" aria-label="Media players">
@@ -1549,23 +1563,19 @@ class NodaliaMediaPlayer extends HTMLElement {
       </div>
     `;
     const idleControlsMarkup = `
-      <div class="media-player__transport-row media-player__transport-row--idle">
-        <div class="media-player__transport-shell">
-          <div class="media-player__transport-cluster media-player__transport-cluster--idle">
-            ${volumeDownMarkup}
-            <button
-              type="button"
-              class="media-player__control media-player__control--primary"
-              data-media-control="play"
-              data-entity="${escapeHtml(player.entity)}"
-              aria-label="Reproducir"
-            >
-              <ha-icon icon="mdi:play"></ha-icon>
-            </button>
-            ${volumeUpMarkup}
-          </div>
-          ${browseMarkup}
-        </div>
+      <div class="media-player__idle-actions">
+        ${volumeDownMarkup}
+        <button
+          type="button"
+          class="media-player__control media-player__control--primary"
+          data-media-control="play"
+          data-entity="${escapeHtml(player.entity)}"
+          aria-label="Reproducir"
+        >
+          <ha-icon icon="mdi:play"></ha-icon>
+        </button>
+        ${volumeUpMarkup}
+        ${browseIdleMarkup}
       </div>
     `;
 
@@ -1589,10 +1599,12 @@ class NodaliaMediaPlayer extends HTMLElement {
                     : `<ha-icon icon="${escapeHtml(player.icon || "mdi:music")}"></ha-icon>`
                 }
               </div>
-              ${infoRailMarkup}
+              <div class="media-player__idle-main">
+                ${infoRailMarkup}
+                ${idleControlsMarkup}
+              </div>
             </div>
             ${dotsMarkup ? `<div class="media-player__switcher media-player__switcher--idle">${dotsMarkup}</div>` : ""}
-            ${idleControlsMarkup}
           </div>
         </div>
       `;
@@ -1857,12 +1869,12 @@ class NodaliaMediaPlayer extends HTMLElement {
         }
 
         .media-player__content--idle {
-          gap: 8px;
-          padding-bottom: 4px;
+          gap: 6px;
+          padding-bottom: 2px;
         }
 
         .media-player-card--idle {
-          min-height: 112px;
+          min-height: 96px;
         }
 
         .media-player__hero {
@@ -1877,6 +1889,14 @@ class NodaliaMediaPlayer extends HTMLElement {
           display: grid;
           gap: 12px;
           grid-template-columns: 56px minmax(0, 1fr);
+          min-width: 0;
+        }
+
+        .media-player__idle-main {
+          align-items: center;
+          display: grid;
+          gap: 10px;
+          grid-template-columns: minmax(0, 1fr) auto;
           min-width: 0;
         }
 
@@ -1905,6 +1925,7 @@ class NodaliaMediaPlayer extends HTMLElement {
         }
 
         .media-player__info-rail--idle {
+          align-items: start;
           gap: 4px;
           justify-items: start;
           max-width: none;
@@ -1978,7 +1999,7 @@ class NodaliaMediaPlayer extends HTMLElement {
         }
 
         .media-player__switcher--idle {
-          margin-top: -2px;
+          margin-top: -4px;
         }
 
         .media-player__transport-row {
@@ -1990,6 +2011,14 @@ class NodaliaMediaPlayer extends HTMLElement {
 
         .media-player__transport-row--idle {
           justify-content: flex-start;
+        }
+
+        .media-player__idle-actions {
+          align-items: center;
+          display: inline-flex;
+          gap: 6px;
+          justify-content: flex-end;
+          min-width: 0;
         }
 
         .media-player__transport-shell {
