@@ -76,7 +76,6 @@ const DEFAULT_CONFIG = {
   entity: "",
   players: [],
   show: undefined,
-  default_view: "compact",
   album_cover_background: true,
   haptics: {
     enabled: false,
@@ -87,7 +86,6 @@ const DEFAULT_CONFIG = {
     fixed: false,
     reserve_space: false,
     reserve_height: "220px",
-    toggle_reserve_height: "60px",
     position: "bottom",
     show_desktop: true,
     mobile_breakpoint: 1279,
@@ -114,17 +112,6 @@ const DEFAULT_CONFIG = {
       dot_size: "8px",
       accent_color: "var(--primary-text-color)",
       accent_background: "rgba(var(--rgb-primary-color), 0.18)",
-    },
-    toggle: {
-      background: "var(--ha-card-background)",
-      border: "1px solid var(--divider-color)",
-      border_radius: "999px",
-      box_shadow: "var(--ha-card-box-shadow)",
-      padding: "8px 10px 8px 8px",
-      min_height: "60px",
-      artwork_size: "40px",
-      title_size: "14px",
-      subtitle_size: "11px",
     },
     browser: {
       background: "var(--ha-card-background)",
@@ -237,9 +224,6 @@ function normalizeConfig(rawConfig) {
     if (mediaConfig.album_cover_background !== undefined) {
       config.album_cover_background = mediaConfig.album_cover_background;
     }
-    if (mediaConfig.default_view !== undefined) {
-      config.default_view = mediaConfig.default_view;
-    }
     if (mediaConfig.show_desktop !== undefined) {
       config.layout.show_desktop = mediaConfig.show_desktop;
     }
@@ -268,7 +252,6 @@ function normalizeConfig(rawConfig) {
   }
 
   config.players = Array.isArray(config.players) ? config.players.filter(player => player?.entity) : [];
-  config.default_view = config.default_view === "expanded" ? "expanded" : "compact";
   config.layout.position = config.layout.position === "top" ? "top" : "bottom";
 
   return config;
@@ -299,7 +282,6 @@ class NodaliaMediaPlayer extends HTMLElement {
     this._mediaBrowserState = null;
     this._mediaBrowserRequestToken = 0;
     this._activePlayerIndex = 0;
-    this._expanded = null;
     this._mediaTicker = null;
     this._onResize = () => {
       this._render();
@@ -331,9 +313,6 @@ class NodaliaMediaPlayer extends HTMLElement {
 
   setConfig(config) {
     this._config = normalizeConfig(config);
-    if (this._expanded === null) {
-      this._expanded = this._config.default_view === "expanded";
-    }
     this._render();
   }
 
@@ -440,17 +419,13 @@ class NodaliaMediaPlayer extends HTMLElement {
     });
   }
 
-  _getReservedHeight(showExpanded, showToggle) {
+  _getReservedHeight(showPlayer) {
     if (!this._config.layout.reserve_space) {
       return "0px";
     }
 
-    if (showExpanded) {
+    if (showPlayer) {
       return this._config.layout.reserve_height || this._config.styles.player.min_height;
-    }
-
-    if (showToggle) {
-      return this._config.layout.toggle_reserve_height || this._config.styles.toggle.min_height;
     }
 
     return "0px";
@@ -1060,19 +1035,6 @@ class NodaliaMediaPlayer extends HTMLElement {
       return;
     }
 
-    const mediaToggleButton = event
-      .composedPath()
-      .find(node => node instanceof HTMLElement && node.dataset?.mediaToggle);
-
-    if (mediaToggleButton) {
-      event.preventDefault();
-      event.stopPropagation();
-      this._triggerHaptic();
-      this._expanded = mediaToggleButton.dataset.mediaToggle === "expand";
-      this._render();
-      return;
-    }
-
     const mediaDotButton = event
       .composedPath()
       .find(node => node instanceof HTMLElement && node.dataset?.mediaIndex !== undefined);
@@ -1392,14 +1354,6 @@ class NodaliaMediaPlayer extends HTMLElement {
             `
             : ""
         }
-        <button
-          type="button"
-          class="media-player__collapse"
-          data-media-toggle="collapse"
-          aria-label="Ocultar reproductor"
-        >
-          <ha-icon icon="mdi:chevron-down"></ha-icon>
-        </button>
         <div class="media-player__status-wrap">
           <span class="media-player__chip media-player__chip--${escapeHtml(state.state || "default")} media-player__chip--status">
             ${escapeHtml(statusLabel)}
@@ -1473,47 +1427,6 @@ class NodaliaMediaPlayer extends HTMLElement {
     `;
   }
 
-  _renderPlayerToggle(players) {
-    if (!players.length) {
-      return "";
-    }
-
-    this._activePlayerIndex = clamp(this._activePlayerIndex, 0, players.length - 1);
-    const player = players[this._activePlayerIndex];
-    const state = this._hass?.states?.[player.entity];
-    if (!state) {
-      return "";
-    }
-
-    const artwork = this._getPlayerArtwork(player, state);
-    const title = this._getPlayerTitle(player, state);
-    const subtitle = this._getPlayerStateLabel(state.state);
-
-    return `
-      <div class="media-player-toggle-wrap">
-        <button
-          type="button"
-          class="media-player-toggle"
-          data-media-toggle="expand"
-          aria-label="Mostrar reproductor"
-        >
-          <span class="media-player-toggle__artwork">
-            ${
-              artwork
-                ? `<img src="${escapeHtml(artwork)}" alt="${escapeHtml(title)}" />`
-                : `<ha-icon icon="${escapeHtml(player.icon || "mdi:music")}"></ha-icon>`
-            }
-          </span>
-          <span class="media-player-toggle__meta">
-            <span class="media-player-toggle__eyebrow">${escapeHtml(subtitle)}</span>
-            <span class="media-player-toggle__title">${escapeHtml(title)}</span>
-          </span>
-          <ha-icon class="media-player-toggle__icon" icon="mdi:chevron-up"></ha-icon>
-        </button>
-      </div>
-    `;
-  }
-
   _render() {
     if (!this.shadowRoot) {
       return;
@@ -1532,34 +1445,23 @@ class NodaliaMediaPlayer extends HTMLElement {
     const inEditMode = this._isInEditMode();
     const players = this._getVisiblePlayers();
     const hasPlayers = players.length > 0;
-
-    if (!hasPlayers) {
-      this._expanded = this._config.default_view === "expanded" ? true : false;
-    }
-
-    const showExpanded = hasPlayers && (this._expanded === true || (this._expanded === null && this._config.default_view === "expanded"));
-    const showToggle = hasPlayers && !showExpanded;
     const isFixed = this._config.layout.fixed && !inEditMode;
-    const spacerHeight = isFixed ? this._getReservedHeight(showExpanded, showToggle) : "0px";
+    const spacerHeight = isFixed ? this._getReservedHeight(hasPlayers) : "0px";
     const mediaBrowserMarkup = this._renderMediaBrowser();
     const titleMarkup = this._config.title
       ? `<div class="card-title">${escapeHtml(this._config.title)}</div>`
       : "";
 
-    this._syncTicker(showExpanded ? players : []);
+    this._syncTicker(hasPlayers ? players : []);
 
     const contentMarkup = hasPlayers
-      ? `
-          ${showToggle ? this._renderPlayerToggle(players) : ""}
-          ${showExpanded ? this._renderPlayerCard(players) : ""}
-        `
+      ? this._renderPlayerCard(players)
       : inEditMode
         ? this._renderEmptyState()
         : "";
 
     const config = this._config;
     const playerStyles = config.styles.player;
-    const toggleStyles = config.styles.toggle;
     const browserStyles = config.styles.browser;
 
     this.shadowRoot.innerHTML = `
@@ -2001,109 +1903,6 @@ class NodaliaMediaPlayer extends HTMLElement {
         .media-player__dot.active::before {
           background: ${playerStyles.accent_color};
           width: calc(${playerStyles.dot_size} + 10px);
-        }
-
-        .media-player__collapse {
-          align-items: center;
-          appearance: none;
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(255, 255, 255, 0.06);
-          border-radius: 999px;
-          color: var(--primary-text-color);
-          cursor: pointer;
-          display: inline-flex;
-          height: 28px;
-          justify-content: center;
-          padding: 0;
-          position: absolute;
-          right: 14px;
-          top: 14px;
-          width: 28px;
-          z-index: 2;
-        }
-
-        .media-player__collapse ha-icon {
-          font-size: 18px;
-        }
-
-        .media-player-toggle-wrap {
-          display: flex;
-          justify-content: center;
-          width: 100%;
-        }
-
-        .media-player-toggle {
-          align-items: center;
-          appearance: none;
-          background: ${toggleStyles.background};
-          border: ${toggleStyles.border};
-          border-radius: ${toggleStyles.border_radius};
-          box-shadow: ${toggleStyles.box_shadow};
-          color: var(--primary-text-color);
-          cursor: pointer;
-          display: inline-flex;
-          gap: 10px;
-          max-width: min(100%, 320px);
-          min-height: ${toggleStyles.min_height};
-          padding: ${toggleStyles.padding};
-          width: auto;
-        }
-
-        .media-player-toggle__artwork {
-          align-items: center;
-          background: rgba(255, 255, 255, 0.08);
-          border-radius: 999px;
-          display: inline-flex;
-          flex: 0 0 auto;
-          height: ${toggleStyles.artwork_size};
-          justify-content: center;
-          overflow: hidden;
-          width: ${toggleStyles.artwork_size};
-        }
-
-        .media-player-toggle__artwork img,
-        .media-player-toggle__artwork ha-icon {
-          height: 100%;
-          object-fit: cover;
-          width: 100%;
-        }
-
-        .media-player-toggle__artwork ha-icon {
-          font-size: 18px;
-          padding: 7px;
-        }
-
-        .media-player-toggle__meta {
-          display: grid;
-          flex: 1 1 auto;
-          gap: 2px;
-          min-width: 0;
-          text-align: left;
-        }
-
-        .media-player-toggle__eyebrow,
-        .media-player-toggle__title {
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        .media-player-toggle__eyebrow {
-          color: var(--secondary-text-color);
-          font-size: ${toggleStyles.subtitle_size};
-          font-weight: 600;
-        }
-
-        .media-player-toggle__title {
-          color: var(--primary-text-color);
-          font-size: ${toggleStyles.title_size};
-          font-weight: 700;
-        }
-
-        .media-player-toggle__icon {
-          color: var(--secondary-text-color);
-          flex: 0 0 auto;
-          font-size: 18px;
         }
 
         .media-browser-backdrop {
