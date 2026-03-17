@@ -1433,6 +1433,22 @@ class NodaliaMediaPlayer extends HTMLElement {
         </div>
       `
       : "";
+    const infoRailMarkup = `
+      <div class="media-player__info-rail">
+        ${
+          playerLabel
+            ? `
+              <span class="media-player__chip media-player__chip--device media-player__chip--top">
+                ${escapeHtml(playerLabel)}
+              </span>
+            `
+            : ""
+        }
+        <span class="media-player__chip media-player__chip--${escapeHtml(state.state || "default")} media-player__chip--status">
+          ${escapeHtml(statusLabel)}
+        </span>
+      </div>
+    `;
 
     return `
       <div
@@ -1453,17 +1469,7 @@ class NodaliaMediaPlayer extends HTMLElement {
             `
             : ""
         }
-        <div class="media-player__status-wrap">
-          <span class="media-player__chip media-player__chip--${escapeHtml(state.state || "default")} media-player__chip--status">
-            ${escapeHtml(statusLabel)}
-          </span>
-        </div>
         <div class="media-player__content">
-          <div class="media-player__topline">
-            <span class="media-player__chip media-player__chip--device media-player__chip--top">
-              ${escapeHtml(playerLabel)}
-            </span>
-          </div>
           <div class="media-player__hero">
             <div class="media-player__artwork">
               ${
@@ -1472,9 +1478,14 @@ class NodaliaMediaPlayer extends HTMLElement {
                   : `<ha-icon icon="${escapeHtml(player.icon || "mdi:music")}"></ha-icon>`
               }
             </div>
-            <div class="media-player__meta">
-              <div class="media-player__title">${escapeHtml(title)}</div>
-              ${subtitleMarkup}
+            <div class="media-player__hero-copy">
+              <div class="media-player__hero-top">
+                <div class="media-player__meta">
+                  <div class="media-player__title">${escapeHtml(title)}</div>
+                  ${subtitleMarkup}
+                </div>
+                ${infoRailMarkup}
+              </div>
             </div>
           </div>
           <div class="media-player__center-stack">
@@ -1700,16 +1711,8 @@ class NodaliaMediaPlayer extends HTMLElement {
         .media-player__content {
           align-content: start;
           display: grid;
-          gap: 12px;
+          gap: 10px;
           padding-bottom: 10px;
-        }
-
-        .media-player__topline {
-          display: flex;
-          justify-content: center;
-          min-height: 26px;
-          padding-inline: 38px;
-          width: 100%;
         }
 
         .media-player__hero {
@@ -1717,7 +1720,30 @@ class NodaliaMediaPlayer extends HTMLElement {
           display: grid;
           gap: 12px;
           grid-template-columns: ${playerStyles.artwork_size} minmax(0, 1fr);
-          padding-right: clamp(52px, 24vw, 168px);
+        }
+
+        .media-player__hero-copy {
+          display: grid;
+          gap: 8px;
+          min-width: 0;
+        }
+
+        .media-player__hero-top {
+          align-items: start;
+          display: grid;
+          gap: 10px;
+          grid-template-columns: minmax(0, 1fr) auto;
+          min-width: 0;
+        }
+
+        .media-player__info-rail {
+          align-items: end;
+          display: grid;
+          gap: 6px;
+          justify-items: end;
+          max-width: clamp(118px, 34vw, 210px);
+          min-width: 0;
+          pointer-events: none;
         }
 
         .media-player__artwork {
@@ -1779,17 +1805,6 @@ class NodaliaMediaPlayer extends HTMLElement {
           display: flex;
           justify-content: center;
           width: 100%;
-        }
-
-        .media-player__status-wrap {
-          display: flex;
-          justify-content: flex-end;
-          max-width: calc(100% - 28px);
-          pointer-events: none;
-          position: absolute;
-          right: 14px;
-          top: 42px;
-          z-index: 2;
         }
 
         .media-player__transport-row {
@@ -1878,9 +1893,9 @@ class NodaliaMediaPlayer extends HTMLElement {
         }
 
         .media-player__chip--top {
-          justify-content: center;
-          max-width: min(100%, 320px);
-          text-align: center;
+          justify-content: flex-end;
+          max-width: 100%;
+          text-align: right;
         }
 
         .media-player__chip--status {
