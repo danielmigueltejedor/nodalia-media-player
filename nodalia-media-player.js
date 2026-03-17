@@ -1,3217 +1,2312 @@
-const haBase =
-  customElements.get("ha-panel-lovelace") ||
-  customElements.get("home-assistant") ||
-  customElements.get("hui-masonry-view");
-
-if (!haBase) {
-  throw new Error("Nodalia Media Player could not find Home Assistant base elements.");
-}
-
-const LitElement = Object.getPrototypeOf(haBase);
-const html = LitElement.prototype.html;
-const css = LitElement.prototype.css;
-
 const CARD_TAG = "nodalia-media-player";
-const EDITOR_TAG = "nodalia-media-player-editor";
+const CARD_VERSION = "0.1.0";
+const HAPTIC_PATTERNS = {
+  selection: 8,
+  light: 10,
+  medium: 16,
+  heavy: 24,
+  success: [10, 40, 10],
+  warning: [20, 50, 12],
+  failure: [12, 40, 12, 40, 18],
+};
+const MUSIC_ASSISTANT_BROWSER_EXCLUDE_PATTERNS = [
+  "ai generated",
+  "ai-generated",
+  "image",
+  "image upload",
+  "generated images",
+  "camera",
+  "cameras",
+  "dlna",
+  "dlna server",
+  "dlna servers",
+  "frigate",
+  "my media",
+  "text to speech",
+  "tts",
+  "xbox game media",
+  "xbox",
+  "imagenes generadas",
+  "images",
+  "imagenes",
+];
+const MUSIC_ASSISTANT_DIRECTORY_ICON_RULES = [
+  { patterns: ["artists", "artistas"], icon: "mdi:account-music" },
+  { patterns: ["albums", "albumes", "álbumes"], icon: "mdi:album" },
+  { patterns: ["tracks", "songs", "canciones", "temas", "pistas"], icon: "mdi:music-note" },
+  { patterns: ["playlists", "listas", "listas de reproduccion", "listas de reproducción"], icon: "mdi:playlist-music" },
+  { patterns: ["radio stations", "radios", "emisoras", "stations"], icon: "mdi:radio" },
+  { patterns: ["podcasts"], icon: "mdi:podcast" },
+  { patterns: ["audiobooks", "audiolibros"], icon: "mdi:book-music" },
+  { patterns: ["genres", "generos", "géneros"], icon: "mdi:shape" },
+  { patterns: ["favorites", "favourites", "favoritos"], icon: "mdi:heart" },
+  { patterns: ["recent", "recently", "recientes"], icon: "mdi:history" },
+  { patterns: ["search", "buscar", "busqueda", "búsqueda"], icon: "mdi:magnify" },
+];
+const MUSIC_ASSISTANT_LABEL_TRANSLATIONS = {
+  artist: "Artistas",
+  artists: "Artistas",
+  album: "Álbumes",
+  albums: "Álbumes",
+  track: "Canciones",
+  tracks: "Canciones",
+  song: "Canciones",
+  songs: "Canciones",
+  playlist: "Listas de reproducción",
+  playlists: "Listas de reproducción",
+  "radio station": "Emisoras",
+  "radio stations": "Emisoras",
+  podcast: "Podcasts",
+  podcasts: "Podcasts",
+  audiobook: "Audiolibros",
+  audiobooks: "Audiolibros",
+  genre: "Géneros",
+  genres: "Géneros",
+  favorite: "Favoritos",
+  favorites: "Favoritos",
+  favourites: "Favoritos",
+  search: "Buscar",
+  "recently played": "Reproducido recientemente",
+  "recently added": "Añadido recientemente",
+  "recently played tracks": "Canciones reproducidas recientemente",
+};
 
-const FEATURE_PAUSE = 1;
-const FEATURE_SEEK = 2;
-const FEATURE_VOLUME_SET = 4;
-const FEATURE_VOLUME_MUTE = 8;
-const FEATURE_PREVIOUS_TRACK = 16;
-const FEATURE_NEXT_TRACK = 32;
-const FEATURE_TURN_ON = 128;
-const FEATURE_TURN_OFF = 256;
-const FEATURE_SELECT_SOURCE = 2048;
-const FEATURE_PLAY = 16384;
-const FEATURE_GROUPING = 524288;
-
-const TRANSLATIONS = {
-  es: {
-    common: {
-      unavailable: "No disponible",
-      noEntities: "No hay entidades configuradas.",
-      noQueue: "La cola esta vacia o mass_queue no esta disponible.",
-      state: "Estado",
-      playing: "Reproduciendo",
-      paused: "En pausa",
-      idle: "En reposo",
-      off: "Apagado",
-      standby: "En espera",
-      buffering: "Cargando",
-      unknown: "Desconocido",
-      moreInfo: "Mas informacion",
-      volume: "Volumen",
-      sources: "Fuentes",
-      queue: "Cola",
-      details: "Detalles",
-      shortcuts: "Acciones",
-      group: "Grupo",
-      clear: "Vaciar",
-      ungroupAll: "Separar todo",
-      remove: "Quitar",
-      power: "Encender o apagar",
-      mute: "Silenciar",
-      unmute: "Activar sonido",
-      previous: "Anterior",
-      play: "Reproducir",
-      pause: "Pausar",
-      next: "Siguiente",
-      seek: "Mover reproduccion",
-      currentSource: "Fuente actual",
-      activeEntity: "Entidad activa",
-      openQueueItem: "Reproducir elemento de la cola",
-      toggleDetails: "Mostrar u ocultar detalles",
-      configure: "Configura la tarjeta",
-      app: "Aplicacion",
-      album: "Album",
-      artist: "Artista",
-      soundMode: "Modo de sonido",
-      groupedPlayers: "Reproductores agrupados",
-      queueSoon: "Siguiente en cola",
-      favorite: "Favorito",
-      musicAssistant: "Music Assistant",
-      device: "Dispositivo",
-      sourceEntity: "Entidad de reproduccion",
-      loading: "Cargando...",
-      name: "Nombre",
-      card: "Tarjeta",
-      blurBackground: "Difuminar fondo",
-      theme: "Tema",
-      fit: "Ajuste",
-      language: "Idioma",
-    },
-    editor: {
-      title: "Nodalia Media Player",
-      players: "Reproductores",
-      playersHint:
-        "Una entidad por linea. Formato opcional: entidad | nombre | icono | volumen_entidad | entidad_ma | color.",
-      name: "Nombre de la tarjeta",
-      language: "Idioma",
-      languageAuto: "Automatico",
-      appearance: "Apariencia",
-      accentColor: "Color de acento",
-      artworkFit: "Ajuste de caratula",
-      theme: "Modo visual",
-      blurBackground: "Difuminar fondo",
-      behavior: "Comportamiento",
-      autoSelect: "Cambiar a la entidad activa automaticamente",
-      collapseWhenIdle: "Contraer en reposo",
-      showTimestamps: "Mostrar tiempos",
-      showVolume: "Mostrar volumen",
-      showSources: "Mostrar fuentes",
-      showGroupControls: "Mostrar agrupacion rapida",
-      showExpandedByDefault: "Abrir detalles por defecto",
-      showDetails: "Mostrar seccion de detalles",
-      enableSeek: "Permitir seek",
-      queueEnabled: "Mostrar cola si mass_queue esta disponible",
-      queueLimit: "Elementos de cola",
-      actions: "Acciones avanzadas",
-      actionsHint:
-        "JSON opcional para chips de accion. Usa {{ entity }}, {{ media_title }} o {{ media_artist }} en service_data.",
-      actionsError: "El JSON de acciones no es valido.",
-      fitCover: "Cubrir",
-      fitContain: "Contener",
-      themeAuto: "Automatico",
-      themeLight: "Claro",
-      themeDark: "Oscuro",
-    },
+const DEFAULT_CONFIG = {
+  title: "",
+  entity: "",
+  players: [],
+  show: undefined,
+  default_view: "compact",
+  album_cover_background: true,
+  haptics: {
+    enabled: false,
+    style: "selection",
+    fallback_vibrate: false,
   },
-  en: {
-    common: {
-      unavailable: "Unavailable",
-      noEntities: "No entities are configured.",
-      noQueue: "Queue is empty or mass_queue is not available.",
-      state: "State",
-      playing: "Playing",
-      paused: "Paused",
-      idle: "Idle",
-      off: "Off",
-      standby: "Standby",
-      buffering: "Buffering",
-      unknown: "Unknown",
-      moreInfo: "More info",
-      volume: "Volume",
-      sources: "Sources",
-      queue: "Queue",
-      details: "Details",
-      shortcuts: "Shortcuts",
-      group: "Group",
-      clear: "Clear",
-      ungroupAll: "Ungroup all",
-      remove: "Remove",
-      power: "Power",
-      mute: "Mute",
-      unmute: "Unmute",
-      previous: "Previous",
-      play: "Play",
-      pause: "Pause",
-      next: "Next",
-      seek: "Seek",
-      currentSource: "Current source",
-      activeEntity: "Active entity",
-      openQueueItem: "Play queue item",
-      toggleDetails: "Show or hide details",
-      configure: "Configure the card",
-      app: "App",
-      album: "Album",
-      artist: "Artist",
-      soundMode: "Sound mode",
-      groupedPlayers: "Grouped players",
-      queueSoon: "Up next",
-      favorite: "Favorite",
-      musicAssistant: "Music Assistant",
-      device: "Device",
-      sourceEntity: "Playback entity",
-      loading: "Loading...",
-      name: "Name",
-      card: "Card",
-      blurBackground: "Blur background",
-      theme: "Theme",
-      fit: "Fit",
-      language: "Language",
+  layout: {
+    fixed: false,
+    reserve_space: false,
+    reserve_height: "220px",
+    toggle_reserve_height: "60px",
+    position: "bottom",
+    show_desktop: true,
+    mobile_breakpoint: 1279,
+    z_index: 3,
+    side_margin: "12px",
+    offset: "12px",
+    max_width: "min(100%, 560px)",
+  },
+  styles: {
+    player: {
+      background: "var(--ha-card-background)",
+      border: "1px solid var(--divider-color)",
+      border_radius: "30px",
+      box_shadow: "var(--ha-card-box-shadow)",
+      padding: "16px",
+      min_height: "178px",
+      artwork_size: "82px",
+      control_size: "44px",
+      title_size: "16px",
+      subtitle_size: "13px",
+      progress_color: "var(--primary-color)",
+      progress_background: "rgba(var(--rgb-primary-color), 0.14)",
+      overlay_color: "rgba(0, 0, 0, 0.32)",
+      dot_size: "8px",
+      accent_color: "var(--primary-text-color)",
+      accent_background: "rgba(var(--rgb-primary-color), 0.18)",
     },
-    editor: {
-      title: "Nodalia Media Player",
-      players: "Players",
-      playersHint:
-        "One entity per line. Optional format: entity | name | icon | volume_entity | ma_entity | color.",
-      name: "Card name",
-      language: "Language",
-      languageAuto: "Automatic",
-      appearance: "Appearance",
-      accentColor: "Accent color",
-      artworkFit: "Artwork fit",
-      theme: "Visual mode",
-      blurBackground: "Blur background",
-      behavior: "Behavior",
-      autoSelect: "Auto-select the active entity",
-      collapseWhenIdle: "Collapse while idle",
-      showTimestamps: "Show timestamps",
-      showVolume: "Show volume",
-      showSources: "Show sources",
-      showGroupControls: "Show quick grouping",
-      showExpandedByDefault: "Open details by default",
-      showDetails: "Show details section",
-      enableSeek: "Allow seek",
-      queueEnabled: "Show queue if mass_queue is available",
-      queueLimit: "Queue items",
-      actions: "Advanced actions",
-      actionsHint:
-        "Optional JSON for action chips. Use {{ entity }}, {{ media_title }} or {{ media_artist }} inside service_data.",
-      actionsError: "Actions JSON is not valid.",
-      fitCover: "Cover",
-      fitContain: "Contain",
-      themeAuto: "Automatic",
-      themeLight: "Light",
-      themeDark: "Dark",
+    toggle: {
+      background: "var(--ha-card-background)",
+      border: "1px solid var(--divider-color)",
+      border_radius: "999px",
+      box_shadow: "var(--ha-card-box-shadow)",
+      padding: "8px 10px 8px 8px",
+      min_height: "60px",
+      artwork_size: "40px",
+      title_size: "14px",
+      subtitle_size: "11px",
+    },
+    browser: {
+      background: "var(--ha-card-background)",
+      border: "1px solid var(--divider-color)",
+      border_radius: "28px",
+      box_shadow: "0 18px 40px rgba(0, 0, 0, 0.22)",
+      backdrop: "rgba(0, 0, 0, 0.18)",
     },
   },
 };
 
-const DEFAULT_APPEARANCE = {
-  artwork_fit: "cover",
-  theme: "auto",
-  accent_color: "var(--primary-text-color)",
-  blur_background: false,
-};
+function isObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
 
-const LEGACY_DEFAULT_ACCENT = "var(--state-media-player-active-color, var(--primary-color))";
-
-const DEFAULT_BEHAVIOR = {
-  auto_select_active: true,
-  collapse_when_idle: false,
-  expanded_by_default: false,
-  show_timestamps: true,
-  show_details: true,
-  show_sources: true,
-  show_volume: true,
-  show_group_controls: true,
-  enable_seek: true,
-};
-
-const DEFAULT_QUEUE = {
-  enabled: true,
-  limit: 5,
-};
-
-function getPathValue(source, path) {
-  return path.split(".").reduce((value, key) => {
-    if (value && typeof value === "object" && key in value) {
-      return value[key];
-    }
+function deepClone(value) {
+  if (value === undefined) {
     return undefined;
-  }, source);
+  }
+
+  return JSON.parse(JSON.stringify(value));
 }
 
-function resolveLanguage(hass, configLanguage) {
-  if (configLanguage && configLanguage !== "auto") {
-    return configLanguage;
+function mergeConfig(base, override) {
+  if (Array.isArray(base)) {
+    return Array.isArray(override) ? override.map(item => deepClone(item)) : deepClone(base);
   }
-  const language = (hass && hass.language ? hass.language : "es")
-    .toLowerCase()
-    .split("-")[0];
-  if (language === "en") {
-    return "en";
-  }
-  return "es";
-}
 
-function localize(key, hass, configLanguage) {
-  const lang = resolveLanguage(hass, configLanguage);
-  return (
-    getPathValue(TRANSLATIONS[lang], key) ||
-    getPathValue(TRANSLATIONS.es, key) ||
-    getPathValue(TRANSLATIONS.en, key) ||
-    key
-  );
+  if (!isObject(base)) {
+    return override === undefined ? base : override;
+  }
+
+  const result = {};
+  const keys = new Set([...Object.keys(base), ...Object.keys(override || {})]);
+
+  keys.forEach(key => {
+    const baseValue = base[key];
+    const overrideValue = override ? override[key] : undefined;
+
+    if (overrideValue === undefined) {
+      result[key] = deepClone(baseValue);
+      return;
+    }
+
+    if (Array.isArray(overrideValue)) {
+      result[key] = deepClone(overrideValue);
+      return;
+    }
+
+    if (isObject(baseValue) && isObject(overrideValue)) {
+      result[key] = mergeConfig(baseValue, overrideValue);
+      return;
+    }
+
+    result[key] = overrideValue;
+  });
+
+  return result;
 }
 
 function fireEvent(node, type, detail, options) {
-  node.dispatchEvent(
-    new CustomEvent(type, {
-      bubbles: true,
-      composed: true,
-      cancelable: false,
-      detail,
-      ...(options || {}),
-    }),
-  );
-}
-
-function supportsFeature(entity, feature) {
-  if (!entity || typeof entity.attributes.supported_features !== "number") {
-    return false;
-  }
-  return (entity.attributes.supported_features & feature) !== 0;
-}
-
-function normalizeEntity(entity) {
-  if (typeof entity === "string") {
-    return { entity };
-  }
-  return {
-    ...entity,
-    hide_controls: Array.isArray(entity.hide_controls) ? entity.hide_controls : [],
-  };
-}
-
-function normalizeConfig(config) {
-  const rawEntities = Array.isArray(config.entities) && config.entities.length
-    ? config.entities
-    : config.entity
-      ? [config.entity]
-      : [];
-  const entities = rawEntities.map(normalizeEntity).filter((item) => item.entity);
-
-  if (!entities.length) {
-    throw new Error("You need to define at least one media player entity.");
-  }
-
-  const accentWasLegacy =
-    !config.appearance ||
-    !config.appearance.accent_color ||
-    config.appearance.accent_color === LEGACY_DEFAULT_ACCENT;
-  const appearance = {
-    ...DEFAULT_APPEARANCE,
-    ...(config.appearance || {}),
-    accent_color: accentWasLegacy
-      ? DEFAULT_APPEARANCE.accent_color
-      : config.appearance && config.appearance.accent_color
-        ? config.appearance.accent_color
-        : DEFAULT_APPEARANCE.accent_color,
-    blur_background:
-      accentWasLegacy &&
-      config.appearance &&
-      config.appearance.blur_background === true
-        ? DEFAULT_APPEARANCE.blur_background
-        : config.appearance &&
-            typeof config.appearance.blur_background === "boolean"
-          ? config.appearance.blur_background
-          : DEFAULT_APPEARANCE.blur_background,
-  };
-
-  return {
-    ...config,
-    type: "custom:nodalia-media-player",
-    language: config.language || "auto",
-    entities,
-    appearance,
-    behavior: {
-      ...DEFAULT_BEHAVIOR,
-      ...(config.behavior || {}),
-    },
-    queue: {
-      ...DEFAULT_QUEUE,
-      ...(config.queue || {}),
-      limit: Math.max(
-        1,
-        Math.min(
-          Number((config.queue && config.queue.limit) || DEFAULT_QUEUE.limit),
-          20,
-        ),
-      ),
-    },
-    actions: Array.isArray(config.actions) ? config.actions : [],
-  };
-}
-
-function buildStubConfig(entityId) {
-  return {
-    type: "custom:nodalia-media-player",
-    entities: [entityId || "media_player.example"],
-  };
-}
-
-function resolveEntries(hass, entities) {
-  return entities.map((config) => {
-    const deviceStateObj = hass && hass.states ? hass.states[config.entity] : undefined;
-    const musicAssistantStateObj =
-      hass && hass.states && config.music_assistant_entity
-        ? hass.states[config.music_assistant_entity]
-        : undefined;
-    const preferredCompanion =
-      typeof config.prefer_music_assistant === "boolean"
-        ? config.prefer_music_assistant
-        : true;
-    const stateObj = chooseDisplayState(
-      deviceStateObj,
-      musicAssistantStateObj,
-      preferredCompanion,
-    );
-    const displayOrigin =
-      stateObj &&
-      musicAssistantStateObj &&
-      stateObj.entity_id === musicAssistantStateObj.entity_id
-        ? "music_assistant"
-        : "entity";
-    const playbackStateObj = stateObj || deviceStateObj || musicAssistantStateObj;
-    const playbackEntityId =
-      (playbackStateObj && playbackStateObj.entity_id) ||
-      config.music_assistant_entity ||
-      config.entity;
-    const sourceStateObj = deviceStateObj || playbackStateObj;
-    const groupStateObj = pickGroupingState(
-      playbackStateObj,
-      musicAssistantStateObj,
-      deviceStateObj,
-    );
-
-    return {
-      config,
-      entityId: config.entity,
-      stateObj,
-      deviceStateObj,
-      musicAssistantStateObj,
-      playbackStateObj,
-      playbackEntityId,
-      sourceStateObj,
-      groupStateObj,
-      groupEntityId:
-        (groupStateObj && groupStateObj.entity_id) || playbackEntityId,
-      displayOrigin,
-      volumeStateObj:
-        hass && hass.states
-          ? hass.states[config.volume_entity || config.entity] ||
-            deviceStateObj ||
-            playbackStateObj
-          : undefined,
-    };
+  const event = new CustomEvent(type, {
+    bubbles: options?.bubbles ?? true,
+    cancelable: Boolean(options?.cancelable),
+    composed: options?.composed ?? true,
+    detail,
   });
+  node.dispatchEvent(event);
+  return event;
 }
 
-function hasUsableMedia(entity) {
-  return Boolean(
-    entity &&
-      entity.attributes &&
-      (entity.attributes.media_title ||
-        entity.attributes.media_content_id ||
-        entity.attributes.entity_picture ||
-        entity.attributes.entity_picture_local),
-  );
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
-function displayScore(entity, preferred = false) {
-  if (!entity) {
-    return -1;
-  }
-  let score = 0;
-  if (isSessionActive(entity)) {
-    score += 100;
-  }
-  if (entity.state === "playing") {
-    score += 30;
-  }
-  if (hasUsableMedia(entity)) {
-    score += 18;
-  }
-  if (preferred) {
-    score += 5;
-  }
-  return score;
+function clamp(value, minimum, maximum) {
+  return Math.min(Math.max(value, minimum), maximum);
 }
 
-function chooseDisplayState(deviceStateObj, musicAssistantStateObj, preferredCompanion = true) {
-  if (!musicAssistantStateObj) {
-    return deviceStateObj;
-  }
-  if (!deviceStateObj) {
-    return musicAssistantStateObj;
-  }
+function formatDuration(totalSeconds) {
+  const safeSeconds = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  const hours = Math.floor(safeSeconds / 3600);
+  const minutes = Math.floor((safeSeconds % 3600) / 60);
+  const seconds = safeSeconds % 60;
 
-  const deviceActive = isSessionActive(deviceStateObj);
-  const companionActive = isSessionActive(musicAssistantStateObj);
-
-  if (!deviceActive && !companionActive) {
-    if (
-      deviceStateObj.state === "unavailable" &&
-      musicAssistantStateObj.state !== "unavailable"
-    ) {
-      return musicAssistantStateObj;
-    }
-    return deviceStateObj;
-  }
-
-  return displayScore(musicAssistantStateObj, preferredCompanion) >
-    displayScore(deviceStateObj)
-    ? musicAssistantStateObj
-    : deviceStateObj;
-}
-
-function pickGroupingState(playbackStateObj, musicAssistantStateObj, deviceStateObj) {
-  return [playbackStateObj, musicAssistantStateObj, deviceStateObj].find(
-    (entity) =>
-      supportsFeature(entity, FEATURE_GROUPING) ||
-      Array.isArray(entity && entity.attributes && entity.attributes.group_members),
-  );
-}
-
-function friendlyName(entity, fallback) {
-  return (
-    (entity && entity.attributes && entity.attributes.friendly_name) ||
-    fallback ||
-    (entity ? entity.entity_id : "") ||
-    ""
-  );
-}
-
-function artworkForEntity(entity, override) {
-  if (override) {
-    return override;
-  }
-  if (!entity) {
-    return "";
-  }
-  return entity.attributes.entity_picture_local || entity.attributes.entity_picture || "";
-}
-
-function iconForEntity(entity, override) {
-  if (override) {
-    return override;
-  }
-  if (entity && entity.attributes.icon) {
-    return entity.attributes.icon;
-  }
-  return "mdi:play-circle-outline";
-}
-
-function isPlaying(entity) {
-  return !!entity && entity.state === "playing";
-}
-
-function isSessionActive(entity) {
-  return !!entity && ["playing", "paused", "buffering"].includes(entity.state);
-}
-
-function isIdleLike(entity) {
-  return !entity || ["idle", "off", "standby", "unavailable", "unknown"].includes(entity.state);
-}
-
-function mediaTitle(entity) {
-  return (
-    (entity && entity.attributes.media_title) ||
-    friendlyName(entity) ||
-    (entity ? entity.entity_id : "") ||
-    ""
-  );
-}
-
-function mediaSubtitle(entity) {
-  return (
-    (entity && entity.attributes.media_artist) ||
-    (entity && entity.attributes.media_album_name) ||
-    (entity && entity.attributes.app_name) ||
-    (entity && entity.attributes.source) ||
-    ""
-  );
-}
-
-function mediaSupportingText(entity) {
-  if (!entity) {
-    return "";
-  }
-  const parts = [
-    entity.attributes.media_album_name,
-    entity.attributes.source,
-    entity.attributes.app_name,
-  ].filter(Boolean);
-  return [...new Set(parts)].join(" · ");
-}
-
-function buildStateLabel(entity) {
-  return entity ? entity.state : "unknown";
-}
-
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function formatTime(totalSeconds) {
-  if (typeof totalSeconds !== "number" || Number.isNaN(totalSeconds)) {
-    return "0:00";
-  }
-  const safe = Math.max(0, Math.floor(totalSeconds));
-  const hours = Math.floor(safe / 3600);
-  const minutes = Math.floor((safe % 3600) / 60);
-  const seconds = safe % 60;
   if (hours > 0) {
     return `${hours}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
   }
+
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-function currentMediaPosition(entity, now) {
-  if (!entity) {
-    return 0;
-  }
-  const basePosition =
-    typeof entity.attributes.media_position === "number"
-      ? entity.attributes.media_position
-      : 0;
-  if (entity.state !== "playing" || !entity.attributes.media_position_updated_at) {
-    return basePosition;
-  }
-  const updated = new Date(entity.attributes.media_position_updated_at).getTime();
-  if (Number.isNaN(updated)) {
-    return basePosition;
-  }
-  return basePosition + Math.max(0, (now - updated) / 1000);
+function normalizeTextKey(value) {
+  return String(value || "").trim().toLowerCase();
 }
 
-function parseEntityEditorText(value) {
-  return value
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [entity, name, icon, volume_entity, maybeMusicAssistantOrColor, maybeColor] = line
-        .split("|")
-        .map((item) => item.trim());
-      const result = { entity };
-      if (name) {
-        result.name = name;
-      }
-      if (icon) {
-        result.icon = icon;
-      }
-      if (volume_entity) {
-        result.volume_entity = volume_entity;
-      }
-      if (maybeColor) {
-        result.music_assistant_entity = maybeMusicAssistantOrColor;
-        result.accent_color = maybeColor;
-      } else if (maybeMusicAssistantOrColor) {
-        if (/^[a-z_]+\.[a-zA-Z0-9_]+$/.test(maybeMusicAssistantOrColor)) {
-          result.music_assistant_entity = maybeMusicAssistantOrColor;
-        } else {
-          result.accent_color = maybeMusicAssistantOrColor;
-        }
-      }
-      return result;
-    })
-    .filter((item) => item.entity);
-}
-
-function serializeEntityEditorText(entities) {
-  return entities
-    .map((entity) => {
-      const parts = [entity.entity, entity.name || "", entity.icon || "", entity.volume_entity || ""];
-      if (entity.music_assistant_entity || entity.accent_color) {
-        parts.push(entity.music_assistant_entity || "");
-      }
-      if (entity.accent_color) {
-        parts.push(entity.accent_color);
-      }
-      while (parts.length > 1 && !parts[parts.length - 1]) {
-        parts.pop();
-      }
-      return parts.join(" | ");
-    })
-    .join("\n");
-}
-
-function parseActionEditorText(value) {
-  if (!value.trim()) {
-    return [];
-  }
-  const parsed = JSON.parse(value);
-  if (!Array.isArray(parsed)) {
-    throw new Error("Actions JSON must be an array.");
-  }
-  return parsed;
-}
-
-function visibilityMatches(visibility, entity) {
-  if (!visibility || visibility === "always") {
-    return true;
-  }
-  if (visibility === "playing") {
-    return isPlaying(entity);
-  }
-  return isIdleLike(entity);
-}
-
-function placeholderContext(entity) {
-  return {
-    entity: entity ? entity.entity_id : "",
-    media_title: String((entity && entity.attributes.media_title) || ""),
-    media_artist: String((entity && entity.attributes.media_artist) || ""),
-    media_album: String((entity && entity.attributes.media_album_name) || ""),
-    source: String((entity && entity.attributes.source) || ""),
-    app_name: String((entity && entity.attributes.app_name) || ""),
-    friendly_name: friendlyName(entity),
-  };
-}
-
-function interpolateString(value, context) {
-  return value.replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (_match, key) => {
-    return context[key] || "";
-  });
-}
-
-function interpolateTemplate(value, context) {
-  if (typeof value === "string") {
-    return interpolateString(value, context);
-  }
-  if (Array.isArray(value)) {
-    return value.map((item) => interpolateTemplate(item, context));
-  }
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, interpolateTemplate(item, context)]),
-    );
-  }
-  return value;
-}
-
-function normalizeGroupMembers(entity) {
-  const members = Array.isArray(entity && entity.attributes.group_members)
-    ? entity.attributes.group_members
-    : [];
-  return [...new Set([entity ? entity.entity_id : "", ...members].filter(Boolean))];
-}
-
-function queueItemTitle(item) {
-  return item.name || item.media_title || item.title || "";
-}
-
-function queueItemSubtitle(item) {
-  return item.artist || item.media_artist || "";
-}
-
-function queueItemImage(item) {
-  return item.image || item.media_image_url || "";
-}
-
-function classes(map) {
-  return Object.entries(map)
-    .filter(([, value]) => Boolean(value))
-    .map(([key]) => key)
-    .join(" ");
-}
-
-async function callWS(hass, message) {
-  if (typeof hass.callWS === "function") {
-    return hass.callWS(message);
-  }
-  if (hass.connection && typeof hass.connection.sendMessagePromise === "function") {
-    return hass.connection.sendMessagePromise(message);
-  }
-  throw new Error("Home Assistant websocket API is not available.");
-}
-
-async function fetchQueueItems(hass, entityId, limit) {
-  const response = await callWS(hass, {
-    type: "call_service",
-    domain: "mass_queue",
-    service: "get_queue_items",
-    service_data: {
-      entity: entityId,
-      limit_before: 0,
-      limit_after: limit,
-    },
-    return_response: true,
-  });
-  return (response && response.response && response.response[entityId]) || [];
-}
-
-async function playQueueItem(hass, entityId, queueItemId) {
-  await hass.callService("mass_queue", "play_queue_item", {
-    entity: entityId,
-    queue_item_id: queueItemId,
-  });
-}
-
-async function removeQueueItem(hass, entityId, queueItemId) {
-  await hass.callService("mass_queue", "remove_queue_item", {
-    entity: entityId,
-    queue_item_id: queueItemId,
-  });
-}
-
-async function clearQueue(hass, entityId) {
-  await hass.callService("media_player", "clear_playlist", {
-    entity_id: entityId,
-  });
-}
-
-const cardStyles = css`
-  :host {
-    display: block;
-  }
-
-  ha-card {
-    --nodalia-card-bg:
-      color-mix(
-        in srgb,
-        var(--ha-card-background, var(--card-background-color)) 94%,
-        var(--primary-text-color) 6%
-      );
-    --nodalia-card-bg-end:
-      color-mix(
-        in srgb,
-        var(--ha-card-background, var(--card-background-color)) 90%,
-        var(--primary-text-color) 10%
-      );
-    --nodalia-hero-bg:
-      color-mix(
-        in srgb,
-        var(--ha-card-background, var(--card-background-color)) 90%,
-        var(--primary-text-color) 10%
-      );
-    --nodalia-hero-bg-end:
-      color-mix(
-        in srgb,
-        var(--ha-card-background, var(--card-background-color)) 86%,
-        var(--primary-text-color) 14%
-      );
-    --nodalia-surface:
-      color-mix(
-        in srgb,
-        var(--ha-card-background, var(--card-background-color)) 88%,
-        var(--primary-text-color) 12%
-      );
-    --nodalia-surface-soft:
-      color-mix(
-        in srgb,
-        var(--ha-card-background, var(--card-background-color)) 92%,
-        var(--primary-text-color) 8%
-      );
-    --nodalia-chip-bg: color-mix(in srgb, var(--primary-text-color) 6%, transparent);
-    --nodalia-control-bg: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
-    --nodalia-control-bg-strong:
-      color-mix(in srgb, var(--primary-text-color) 14%, transparent);
-    --nodalia-outline: color-mix(in srgb, var(--primary-text-color) 8%, transparent);
-    --nodalia-outline-strong:
-      color-mix(in srgb, var(--primary-text-color) 12%, transparent);
-    position: relative;
-    overflow: hidden;
-    border-radius: 26px;
-    border: 1px solid var(--nodalia-outline);
-    background:
-      linear-gradient(
-        180deg,
-        var(--nodalia-card-bg),
-        var(--nodalia-card-bg-end)
-      );
-    box-shadow: none;
-  }
-
-  ha-card.theme-dark {
-    color-scheme: dark;
-    --nodalia-card-bg: #24262d;
-    --nodalia-card-bg-end: #202229;
-    --nodalia-hero-bg: #2a2d34;
-    --nodalia-hero-bg-end: #282b32;
-    --nodalia-surface: #2e3138;
-    --nodalia-surface-soft: #31343c;
-    --nodalia-chip-bg: rgba(255, 255, 255, 0.06);
-    --nodalia-control-bg: rgba(255, 255, 255, 0.07);
-    --nodalia-control-bg-strong: rgba(255, 255, 255, 0.12);
-    --nodalia-outline: rgba(255, 255, 255, 0.06);
-    --nodalia-outline-strong: rgba(255, 255, 255, 0.1);
-  }
-
-  ha-card.theme-light {
-    color-scheme: light;
-    --nodalia-card-bg: #f6f7fb;
-    --nodalia-card-bg-end: #eef1f7;
-    --nodalia-hero-bg: #ffffff;
-    --nodalia-hero-bg-end: #f3f5fa;
-    --nodalia-surface: #ffffff;
-    --nodalia-surface-soft: #eef1f7;
-    --nodalia-chip-bg: rgba(15, 23, 42, 0.05);
-    --nodalia-control-bg: rgba(15, 23, 42, 0.06);
-    --nodalia-control-bg-strong: rgba(15, 23, 42, 0.1);
-    --nodalia-outline: rgba(15, 23, 42, 0.08);
-    --nodalia-outline-strong: rgba(15, 23, 42, 0.12);
-  }
-
-  .shell {
-    position: relative;
-    display: grid;
-    gap: 8px;
-    padding: 10px;
-    color: var(--primary-text-color);
-  }
-
-  .hero {
-    position: relative;
-    display: block;
-    padding: 14px;
-    border-radius: 22px;
-    overflow: hidden;
-    background:
-      linear-gradient(
-        180deg,
-        var(--nodalia-hero-bg),
-        var(--nodalia-hero-bg-end)
-      );
-    border: 1px solid var(--nodalia-outline);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-  }
-
-  .hero-backdrop,
-  .hero-veil {
-    position: absolute;
-    inset: 0;
-  }
-
-  .hero-backdrop {
-    background-position: center;
-    background-repeat: no-repeat;
-    background-size: cover;
-    opacity: 0.12;
-    transform: scale(1.06);
-  }
-
-  .hero-backdrop.blur {
-    filter: blur(36px) saturate(0.75);
-  }
-
-  .hero-veil {
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent 34%),
-      linear-gradient(135deg, rgba(255, 255, 255, 0.01), rgba(0, 0, 0, 0.12));
-  }
-
-  .hero > *:not(.hero-backdrop):not(.hero-veil) {
-    position: relative;
-    z-index: 1;
-  }
-
-  .hero-layout {
-    display: grid;
-    grid-template-columns: 72px minmax(0, 1fr);
-    gap: 12px;
-    align-items: center;
-  }
-
-  .artwork-button {
-    display: grid;
-    place-items: center;
-    width: 72px;
-    height: 72px;
-    padding: 0;
-    overflow: hidden;
-    border: 1px solid var(--nodalia-outline-strong);
-    border-radius: 20px;
-    background: var(--nodalia-surface);
-    box-shadow: none;
-    cursor: pointer;
-  }
-
-  .artwork-button img {
-    width: 100%;
-    height: 100%;
-  }
-
-  .artwork-placeholder {
-    display: grid;
-    place-items: center;
-    width: 100%;
-    height: 100%;
-    background:
-      linear-gradient(
-        180deg,
-        color-mix(in srgb, var(--nodalia-surface-soft) 82%, var(--primary-text-color) 18%),
-        var(--nodalia-surface)
-      );
-  }
-
-  .artwork-placeholder ha-icon {
-    --mdc-icon-size: 30px;
-    opacity: 0.82;
-  }
-
-  .hero-copy {
-    min-width: 0;
-    display: grid;
-    gap: 8px;
-  }
-
-  .hero-topline {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    align-items: center;
-  }
-
-  .hero-title {
-    margin: 0;
-    font-size: 1.18rem;
-    line-height: 1.08;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .hero-heading {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 6px;
-  }
-
-  .hero-heading-copy {
-    min-width: 0;
-    display: grid;
-    gap: 3px;
-  }
-
-  .hero-subtitle,
-  .hero-supporting {
-    margin: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .hero-subtitle {
-    color: var(--primary-text-color);
-    opacity: 0.92;
-    font-size: 1rem;
-    font-weight: 500;
-  }
-
-  .hero-supporting {
-    color: var(--secondary-text-color);
-    font-size: 0.82rem;
-  }
-
-  .hero-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 0.34rem 0.72rem;
-    border: 1px solid var(--nodalia-outline);
-    border-radius: 999px;
-    font-size: 0.72rem;
-    line-height: 1;
-    font-weight: 700;
-    letter-spacing: 0.02em;
-    background: var(--nodalia-chip-bg);
-  }
-
-  .hero-chip.state-playing {
-    background:
-      color-mix(in srgb, var(--nodalia-accent) 12%, var(--nodalia-chip-bg));
-    border-color:
-      color-mix(in srgb, var(--nodalia-accent) 18%, var(--nodalia-outline));
-  }
-
-  .hero-chip.state-paused,
-  .hero-chip.state-buffering {
-    background: var(--nodalia-control-bg);
-  }
-
-  .hero-chip.accent {
-    background:
-      color-mix(in srgb, var(--nodalia-accent) 9%, var(--nodalia-chip-bg));
-    border-color:
-      color-mix(in srgb, var(--nodalia-accent) 14%, var(--nodalia-outline));
-  }
-
-  .hero-progress {
-    display: grid;
-    gap: 5px;
-  }
-
-  .hero-progress-track {
-    width: 100%;
-    height: 4px;
-    overflow: hidden;
-    border-radius: 999px;
-    background: var(--nodalia-control-bg);
-  }
-
-  .hero-progress-fill {
-    height: 100%;
-    border-radius: inherit;
-    background: color-mix(in srgb, var(--nodalia-accent) 76%, white 24%);
-  }
-
-  .hero-times {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    color: var(--secondary-text-color);
-    font-size: 0.74rem;
-  }
-
-  .hero-bottom {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .hero-controls,
-  .hero-actions-inline {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
-
-  .hero-actions-inline {
-    justify-content: flex-end;
-  }
-
-  .hero-ghost {
-    position: absolute;
-    right: 6px;
-    bottom: 8px;
-    display: grid;
-    place-items: center;
-    width: 92px;
-    height: 92px;
-    opacity: 0.07;
-    pointer-events: none;
-  }
-
-  .hero-ghost-artwork {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    filter: saturate(0.45);
-  }
-
-  .hero-ghost-icon {
-    --mdc-icon-size: 64px;
-  }
-
-  .icon-button,
-  .action-chip,
-  .entity-chip,
-  .source-chip,
-  .group-chip,
-  .queue-clear {
-    font: inherit;
-  }
-
-  .icon-button {
-    display: inline-grid;
-    place-items: center;
-    width: 38px;
-    height: 38px;
-    padding: 0;
-    border: 1px solid var(--nodalia-outline);
-    border-radius: 50%;
-    background: var(--nodalia-control-bg);
-    color: inherit;
-    cursor: pointer;
-    transition:
-      transform 0.18s ease,
-      background 0.18s ease,
-      border-color 0.18s ease;
-  }
-
-  .icon-button:hover,
-  .action-chip:hover,
-  .entity-chip:hover,
-  .source-chip:hover,
-  .group-chip:hover,
-  .queue-row:hover,
-  .queue-item-main:hover {
-    transform: translateY(-1px);
-  }
-
-  .icon-button.primary {
-    background:
-      color-mix(in srgb, var(--nodalia-accent) 12%, var(--nodalia-control-bg-strong));
-    border-color:
-      color-mix(in srgb, var(--nodalia-accent) 18%, var(--nodalia-outline));
-  }
-
-  .icon-button.subtle {
-    background: var(--nodalia-control-bg);
-  }
-
-  .icon-button.small {
-    width: 36px;
-    height: 36px;
-  }
-
-  .icon-button ha-icon {
-    --mdc-icon-size: 18px;
-  }
-
-  .entity-row,
-  .source-row,
-  .shortcut-row,
-  .group-row {
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    padding: 0 2px 2px;
-    scrollbar-width: none;
-  }
-
-  .entity-row::-webkit-scrollbar,
-  .source-row::-webkit-scrollbar,
-  .shortcut-row::-webkit-scrollbar,
-  .group-row::-webkit-scrollbar {
-    display: none;
-  }
-
-  .entity-chip,
-  .source-chip,
-  .group-chip,
-  .action-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    min-height: 36px;
-    padding: 0.54rem 0.85rem;
-    border: 1px solid transparent;
-    border-radius: 999px;
-    background: var(--nodalia-chip-bg);
-    color: inherit;
-    white-space: nowrap;
-    cursor: pointer;
-    transition:
-      transform 0.18s ease,
-      background 0.18s ease,
-      border-color 0.18s ease,
-      color 0.18s ease;
-  }
-
-  .entity-chip.selected,
-  .source-chip.selected,
-  .group-chip.joined {
-    background:
-      color-mix(in srgb, var(--nodalia-accent) 10%, var(--nodalia-chip-bg));
-    border-color:
-      color-mix(in srgb, var(--nodalia-accent) 16%, var(--nodalia-outline));
-    box-shadow: none;
-  }
-
-  .entity-chip.playing::before,
-  .group-chip.joined::before {
-    content: "";
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: color-mix(in srgb, var(--nodalia-accent) 42%, white 58%);
-  }
-
-  .action-chip {
-    background: var(--nodalia-control-bg);
-    border-color: var(--nodalia-outline);
-  }
-
-  .chip-label,
-  .source-label,
-  .group-label,
-  .action-label {
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .transport-shell,
-  .slider-shell,
-  .section {
-    padding: 12px;
-    border-radius: 18px;
-    background: var(--nodalia-surface-soft);
-    border: 1px solid var(--nodalia-outline);
-  }
-
-  .transport-shell {
-    display: grid;
-    gap: 14px;
-  }
-
-  .transport-header,
-  .slider-header,
-  .section-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-  }
-
-  .section-header h3,
-  .transport-header h3 {
-    margin: 0;
-    font-size: 0.94rem;
-    font-weight: 700;
-  }
-
-  .section-header p,
-  .transport-header p {
-    margin: 2px 0 0;
-    color: var(--secondary-text-color);
-    font-size: 0.8rem;
-  }
-
-  .transport-main {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    gap: 12px;
-    align-items: center;
-  }
-
-  .transport-controls {
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
-
-  .play-button {
-    width: 52px;
-    height: 52px;
-  }
-
-  .play-button ha-icon {
-    --mdc-icon-size: 24px;
-  }
-
-  .transport-side {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-  }
-
-  .slider-shell {
-    display: grid;
-    gap: 10px;
-  }
-
-  .slider-values {
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    color: var(--secondary-text-color);
-    font-size: 0.8rem;
-  }
-
-  input[type="range"] {
-    width: 100%;
-    margin: 0;
-    accent-color: color-mix(in srgb, var(--nodalia-accent) 68%, white 32%);
-  }
-
-  .section {
-    display: grid;
-    gap: 12px;
-  }
-
-  .detail-grid {
-    display: grid;
-    gap: 10px;
-    grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
-  }
-
-  .detail-card {
-    display: grid;
-    gap: 4px;
-    padding: 12px;
-    border: 1px solid var(--nodalia-outline);
-    border-radius: 16px;
-    background: var(--nodalia-control-bg);
-  }
-
-  .detail-label {
-    color: var(--secondary-text-color);
-    font-size: 0.76rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  .detail-value {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    font-weight: 600;
-  }
-
-  .queue-list {
-    display: grid;
-    gap: 10px;
-  }
-
-  .queue-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    gap: 10px;
-    align-items: center;
-    padding: 9px;
-    border: 1px solid transparent;
-    border-radius: 16px;
-    background: var(--nodalia-control-bg);
-  }
-
-  .queue-item-main {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: 12px;
-    align-items: center;
-    border: 0;
-    background: transparent;
-    color: inherit;
-    text-align: left;
-    cursor: pointer;
-  }
-
-  .queue-row.playing {
-    background:
-      color-mix(in srgb, var(--nodalia-accent) 10%, var(--nodalia-control-bg));
-    border-color:
-      color-mix(in srgb, var(--nodalia-accent) 14%, var(--nodalia-outline));
-  }
-
-  .queue-thumb {
-    width: 48px;
-    height: 48px;
-    overflow: hidden;
-    border-radius: 14px;
-    background: var(--nodalia-surface);
-  }
-
-  .queue-thumb img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
-  .queue-meta {
-    min-width: 0;
-    display: grid;
-    gap: 4px;
-  }
-
-  .queue-title,
-  .queue-subtitle {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  .queue-title {
-    font-weight: 600;
-  }
-
-  .queue-subtitle {
-    color: var(--secondary-text-color);
-    font-size: 0.82rem;
-  }
-
-  .queue-row .icon-button {
-    width: 34px;
-    height: 34px;
-  }
-
-  .queue-empty,
-  .queue-loading,
-  .notice {
-    color: var(--secondary-text-color);
-    font-size: 0.88rem;
-  }
-
-  .queue-clear {
-    padding: 0.46rem 0.76rem;
-    border: 1px solid var(--nodalia-outline);
-    border-radius: 999px;
-    background: var(--nodalia-chip-bg);
-    color: inherit;
-    cursor: pointer;
-  }
-
-  .details-toggle {
-    background: transparent;
-  }
-
-  .collapsed .hero {
-    padding: 13px;
-  }
-
-  .collapsed .artwork-button {
-    width: 68px;
-    height: 68px;
-    border-radius: 18px;
-  }
-
-  .collapsed .hero-title {
-    font-size: 1.08rem;
-  }
-
-  .notice {
-    padding: 16px;
-  }
-
-  @media (max-width: 640px) {
-    .shell {
-      padding: 9px;
+function normalizeConfig(rawConfig) {
+  const config = mergeConfig(DEFAULT_CONFIG, rawConfig || {});
+  const mediaConfig = isObject(rawConfig?.media_player) ? rawConfig.media_player : null;
+
+  if (mediaConfig) {
+    if (mediaConfig.show !== undefined) {
+      config.show = mediaConfig.show;
     }
-
-    .hero-layout {
-      grid-template-columns: 68px minmax(0, 1fr);
-      gap: 10px;
+    if (mediaConfig.album_cover_background !== undefined) {
+      config.album_cover_background = mediaConfig.album_cover_background;
     }
-
-    .artwork-button {
-      width: 68px;
-      height: 68px;
-      border-radius: 18px;
+    if (mediaConfig.default_view !== undefined) {
+      config.default_view = mediaConfig.default_view;
     }
-
-    .hero-title {
-      font-size: 1.08rem;
+    if (mediaConfig.show_desktop !== undefined) {
+      config.layout.show_desktop = mediaConfig.show_desktop;
     }
-
-    .hero-ghost {
-      width: 82px;
-      height: 82px;
+    if (Array.isArray(mediaConfig.players) && mediaConfig.players.length > 0 && (!Array.isArray(rawConfig?.players) || rawConfig.players.length === 0)) {
+      config.players = deepClone(mediaConfig.players);
     }
   }
-`;
 
-const editorStyles = css`
-  :host {
-    display: block;
-    padding: 12px 0 0;
-    color: var(--primary-text-color);
+  if (
+    (!Array.isArray(config.players) || config.players.length === 0) &&
+    typeof config.entity === "string" &&
+    config.entity
+  ) {
+    config.players = [
+      {
+        entity: config.entity,
+        label: config.label,
+        name: config.name,
+        title: config.player_title,
+        subtitle: config.subtitle,
+        icon: config.icon,
+        image: config.image,
+        browse_path: config.browse_path,
+      },
+    ];
   }
 
-  .editor {
-    display: grid;
-    gap: 18px;
-  }
+  config.players = Array.isArray(config.players) ? config.players.filter(player => player?.entity) : [];
+  config.default_view = config.default_view === "expanded" ? "expanded" : "compact";
+  config.layout.position = config.layout.position === "top" ? "top" : "bottom";
 
-  .section {
-    display: grid;
-    gap: 12px;
-    padding: 16px;
-    border-radius: 20px;
-    background: color-mix(in srgb, var(--primary-text-color) 4%, transparent);
-    border: 1px solid color-mix(in srgb, var(--primary-text-color) 8%, transparent);
-  }
+  return config;
+}
 
-  .section h3 {
-    margin: 0;
-    font-size: 1rem;
-    font-weight: 700;
-  }
-
-  .hint {
-    margin: 0;
-    color: var(--secondary-text-color);
-    font-size: 0.85rem;
-    line-height: 1.4;
-  }
-
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 12px;
-  }
-
-  label {
-    display: grid;
-    gap: 6px;
-    font-size: 0.9rem;
-  }
-
-  input,
-  textarea,
-  select {
-    width: 100%;
-    box-sizing: border-box;
-    padding: 0.75rem 0.9rem;
-    border: 1px solid var(--divider-color);
-    border-radius: 14px;
-    background: var(--card-background-color, var(--secondary-background-color));
-    color: inherit;
-    font: inherit;
-  }
-
-  textarea {
-    min-height: 118px;
-    resize: vertical;
-  }
-
-  .toggle-grid {
-    display: grid;
-    gap: 10px;
-  }
-
-  .toggle {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 0.75rem 0.9rem;
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.03);
-  }
-
-  .toggle input {
-    width: auto;
-    margin: 0;
-  }
-
-  .error {
-    color: var(--error-color);
-    font-size: 0.85rem;
-  }
-`;
-
-class NodaliaMediaPlayerEditor extends LitElement {
-  static get properties() {
+class NodaliaMediaPlayer extends HTMLElement {
+  static getStubConfig() {
     return {
-      hass: {},
-      _config: { state: true },
-      _rawConfig: { state: true },
-      _entitiesText: { state: true },
-      _actionsText: { state: true },
-      _actionsError: { state: true },
+      title: "Nodalia Media Player",
+      players: [
+        {
+          entity: "media_player.spotify",
+          label: "Spotify",
+        },
+      ],
+      layout: {
+        fixed: true,
+        reserve_space: true,
+      },
     };
-  }
-
-  static get styles() {
-    return editorStyles;
   }
 
   constructor() {
     super();
-    this.hass = undefined;
-    this._config = undefined;
-    this._rawConfig = undefined;
-    this._entitiesText = "";
-    this._actionsText = "";
-    this._actionsError = "";
+    this.attachShadow({ mode: "open" });
+    this._config = null;
+    this._hass = null;
+    this._mediaBrowserState = null;
+    this._mediaBrowserRequestToken = 0;
+    this._activePlayerIndex = 0;
+    this._expanded = null;
+    this._mediaTicker = null;
+    this._onResize = () => {
+      this._render();
+    };
+    this._onWindowKeyDown = event => {
+      if (event.key === "Escape" && this._mediaBrowserState) {
+        event.preventDefault();
+        this._closeMediaBrowser();
+      }
+    };
+    this._onShadowClick = this._onShadowClick.bind(this);
+    this.shadowRoot.addEventListener("click", this._onShadowClick);
+  }
+
+  connectedCallback() {
+    window.addEventListener("resize", this._onResize);
+    window.addEventListener("keydown", this._onWindowKeyDown);
+    this._render();
+  }
+
+  disconnectedCallback() {
+    window.removeEventListener("resize", this._onResize);
+    window.removeEventListener("keydown", this._onWindowKeyDown);
+    if (this._mediaTicker) {
+      window.clearInterval(this._mediaTicker);
+      this._mediaTicker = null;
+    }
   }
 
   setConfig(config) {
-    const candidate = config || {};
-    const typed =
-      (candidate.entities && candidate.entities.length) || candidate.entity
-        ? candidate
-        : buildStubConfig();
-    this._rawConfig = typed;
-    this._config = normalizeConfig(typed);
-    this._entitiesText = serializeEntityEditorText(this._config.entities);
-    this._actionsText = this._config.actions.length
-      ? JSON.stringify(this._config.actions, null, 2)
-      : "";
-    this._actionsError = "";
-  }
-
-  _t(key) {
-    return localize(key, this.hass, this._config ? this._config.language : "auto");
-  }
-
-  _emitConfig(config) {
-    this._rawConfig = config;
     this._config = normalizeConfig(config);
-    fireEvent(this, "config-changed", { config });
+    if (this._expanded === null) {
+      this._expanded = this._config.default_view === "expanded";
+    }
+    this._render();
   }
 
-  _updateRoot(key, value) {
-    if (!this._rawConfig) {
-      return;
-    }
-    this._emitConfig({
-      ...this._rawConfig,
-      [key]: value,
-    });
+  set hass(hass) {
+    this._hass = hass;
+    this._render();
   }
 
-  _updateAppearance(key, value) {
-    if (!this._rawConfig) {
-      return;
-    }
-    this._emitConfig({
-      ...this._rawConfig,
-      appearance: {
-        ...(this._rawConfig.appearance || {}),
-        [key]: value,
-      },
-    });
+  getCardSize() {
+    return 3;
   }
 
-  _updateBehavior(key, value) {
-    if (!this._rawConfig) {
-      return;
-    }
-    this._emitConfig({
-      ...this._rawConfig,
-      behavior: {
-        ...(this._rawConfig.behavior || {}),
-        [key]: value,
-      },
-    });
+  _isInEditMode() {
+    const homeAssistantRoot = document.querySelector("body > home-assistant");
+
+    const inEditDashboardMode = this.closest("hui-card-edit-mode") !== null;
+    const inPreviewMode = this.closest("hui-card-preview") !== null || this.closest(".card > .preview") !== null;
+    const inEditCardMode = Boolean(
+      homeAssistantRoot?.shadowRoot
+        ?.querySelector("hui-dialog-edit-card")
+        ?.shadowRoot?.querySelector("ha-dialog"),
+    );
+
+    return inEditDashboardMode || inPreviewMode || inEditCardMode;
   }
 
-  _updateQueue(limit, enabled) {
-    if (!this._rawConfig) {
-      return;
+  _shouldHideForScreen() {
+    if (this._isInEditMode()) {
+      return false;
     }
-    this._emitConfig({
-      ...this._rawConfig,
-      queue: {
-        ...(this._rawConfig.queue || {}),
-        ...(typeof enabled === "boolean" ? { enabled } : {}),
-        ...(typeof limit === "number" && !Number.isNaN(limit) ? { limit } : {}),
-      },
-    });
+
+    if (this._config.layout.show_desktop) {
+      return false;
+    }
+
+    return window.innerWidth > Number(this._config.layout.mobile_breakpoint || 1279);
   }
 
-  _onEntitiesInput(value) {
-    this._entitiesText = value;
-    const entities = parseEntityEditorText(value);
-    if (!entities.length || !this._rawConfig) {
+  _triggerHaptic(style = this._config?.haptics?.style) {
+    if (!this._config?.haptics?.enabled) {
       return;
     }
-    this._emitConfig({
-      ...this._rawConfig,
-      entities,
-    });
-  }
 
-  _onActionsInput(value) {
-    this._actionsText = value;
-    if (!this._rawConfig) {
-      return;
-    }
+    const hapticStyle = String(style || "selection");
+
     try {
-      const actions = parseActionEditorText(value);
-      this._actionsError = "";
-      this._emitConfig({
-        ...this._rawConfig,
-        actions,
-      });
+      fireEvent(this, "haptic", hapticStyle);
     } catch (_error) {
-      this._actionsError = value.trim() ? this._t("editor.actionsError") : "";
-      if (!value.trim()) {
-        this._actionsError = "";
-        this._emitConfig({
-          ...this._rawConfig,
-          actions: [],
+      // Ignore event dispatch issues and try vibration fallback below.
+    }
+
+    if (
+      !this._config.haptics.fallback_vibrate ||
+      typeof navigator === "undefined" ||
+      typeof navigator.vibrate !== "function"
+    ) {
+      return;
+    }
+
+    navigator.vibrate(HAPTIC_PATTERNS[hapticStyle] || HAPTIC_PATTERNS.selection);
+  }
+
+  _getConfiguredPlayers() {
+    return Array.isArray(this._config?.players) ? this._config.players : [];
+  }
+
+  _findPlayerConfig(entityId) {
+    return this._getConfiguredPlayers().find(player => player.entity === entityId) || null;
+  }
+
+  _shouldShowOnCurrentScreen() {
+    if (this._isInEditMode()) {
+      return true;
+    }
+
+    const isDesktop = window.innerWidth > Number(this._config.layout.mobile_breakpoint || 1279);
+    return !isDesktop || this._config.layout.show_desktop;
+  }
+
+  _getVisiblePlayers() {
+    if (this._config.show === false || !this._shouldShowOnCurrentScreen()) {
+      return [];
+    }
+
+    return this._getConfiguredPlayers().filter(player => {
+      if (!player?.entity || player.show === false) {
+        return false;
+      }
+
+      const state = this._hass?.states?.[player.entity];
+      if (!state) {
+        return false;
+      }
+
+      if (this._config.show === true || player.show === true || this._isInEditMode()) {
+        return true;
+      }
+
+      const visibleStates = Array.isArray(player.show_states) && player.show_states.length > 0
+        ? player.show_states
+        : ["playing", "paused"];
+
+      return visibleStates.includes(state.state);
+    });
+  }
+
+  _getReservedHeight(showExpanded, showToggle) {
+    if (!this._config.layout.reserve_space) {
+      return "0px";
+    }
+
+    if (showExpanded) {
+      return this._config.layout.reserve_height || this._config.styles.player.min_height;
+    }
+
+    if (showToggle) {
+      return this._config.layout.toggle_reserve_height || this._config.styles.toggle.min_height;
+    }
+
+    return "0px";
+  }
+
+  _getPlayerLabel(player, state) {
+    return player.label || player.name || state.attributes.friendly_name || player.entity;
+  }
+
+  _getPlayerTitle(player, state) {
+    if (player.title) {
+      return player.title;
+    }
+
+    return state.attributes.media_title || state.attributes.friendly_name || player.entity;
+  }
+
+  _getPlayerSubtitle(player, state) {
+    if (player.subtitle) {
+      return player.subtitle;
+    }
+
+    return (
+      state.attributes.media_artist ||
+      state.attributes.media_series_title ||
+      state.attributes.media_album_name ||
+      state.attributes.app_name ||
+      this._getPlayerStateLabel(state.state)
+    );
+  }
+
+  _getPlayerArtwork(player, state) {
+    return player.image || state.attributes.entity_picture || null;
+  }
+
+  _getPlayerStateLabel(stateValue) {
+    switch (stateValue) {
+      case "playing":
+        return "Reproduciendo";
+      case "paused":
+        return "En pausa";
+      case "buffering":
+        return "Cargando";
+      case "idle":
+        return "En espera";
+      case "off":
+        return "Apagado";
+      case "standby":
+        return "Standby";
+      case "unavailable":
+        return "No disponible";
+      default:
+        return stateValue || "Desconocido";
+    }
+  }
+
+  _getPlayerProgress(state) {
+    const duration = Number(state?.attributes?.media_duration || 0);
+
+    if (!(duration > 0)) {
+      return null;
+    }
+
+    let position = Number(state.attributes.media_position || 0);
+    const updatedAt = state.attributes.media_position_updated_at;
+
+    if (state.state === "playing" && updatedAt) {
+      const updatedAtTime = new Date(updatedAt).getTime();
+
+      if (!Number.isNaN(updatedAtTime)) {
+        position += Math.max(0, (Date.now() - updatedAtTime) / 1000);
+      }
+    }
+
+    position = clamp(position, 0, duration);
+
+    return {
+      duration,
+      percent: clamp((position / duration) * 100, 0, 100),
+      position,
+    };
+  }
+
+  _getPlayerSourceLabel(state) {
+    const sourceLabel =
+      state.attributes.source ||
+      state.attributes.app_name ||
+      state.attributes.media_album_name ||
+      state.attributes.media_channel;
+
+    const sourceKey = normalizeTextKey(sourceLabel);
+
+    if (!sourceKey || sourceKey.includes("music assistant")) {
+      return null;
+    }
+
+    return sourceLabel;
+  }
+
+  _isMusicAssistantPlayer(player, state) {
+    const candidates = [
+      player?.entity,
+      player?.label,
+      player?.name,
+      player?.title,
+      state?.attributes?.friendly_name,
+      state?.attributes?.source,
+      state?.attributes?.app_name,
+      state?.attributes?.media_channel,
+      state?.attributes?.media_content_id,
+    ];
+
+    return candidates.some(candidate => normalizeTextKey(candidate).includes("music assistant"));
+  }
+
+  _getPlayerBrowsePath(player, state) {
+    if (player?.browse_path) {
+      return player.browse_path;
+    }
+
+    if (player?.media_browser_path) {
+      return player.media_browser_path;
+    }
+
+    return this._isMusicAssistantPlayer(player, state) ? "/media-browser/browser" : "";
+  }
+
+  _supportsVolumeControl(state) {
+    return typeof state?.attributes?.volume_level === "number";
+  }
+
+  _getPlayerChips(player, state, progress, title, subtitle) {
+    const chips = [];
+    const seen = new Set();
+    const titleKey = normalizeTextKey(title);
+    const subtitleKey = normalizeTextKey(subtitle);
+
+    const addChip = (label, tone = "default") => {
+      const text = String(label || "").trim();
+      if (!text) {
+        return;
+      }
+
+      const key = normalizeTextKey(text);
+      if (!key || key === titleKey || key === subtitleKey || seen.has(key)) {
+        return;
+      }
+
+      seen.add(key);
+      chips.push({ label: text, tone });
+    };
+
+    addChip(this._getPlayerSourceLabel(state), "source");
+
+    if (progress) {
+      addChip(`${formatDuration(progress.position)} / ${formatDuration(progress.duration)}`, "time");
+    }
+
+    return chips.slice(0, 4);
+  }
+
+  _syncTicker(players) {
+    const shouldTick = players.some(player => {
+      const state = this._hass?.states?.[player.entity];
+      const progress = state ? this._getPlayerProgress(state) : null;
+      return state?.state === "playing" && progress;
+    });
+
+    if (shouldTick && !this._mediaTicker) {
+      this._mediaTicker = window.setInterval(() => this._render(), 1000);
+      return;
+    }
+
+    if (!shouldTick && this._mediaTicker) {
+      window.clearInterval(this._mediaTicker);
+      this._mediaTicker = null;
+    }
+  }
+
+  _callService(action) {
+    if (!this._hass || !action?.service) {
+      return;
+    }
+
+    const [domain, service] = String(action.service).split(".");
+    if (!domain || !service) {
+      return;
+    }
+
+    this._hass.callService(domain, service, action.service_data || action.data || {});
+  }
+
+  _runPlayerAction(player, defaultAction = null) {
+    const action = player.tap_action || defaultAction;
+
+    if (!action || action.action === "none") {
+      return;
+    }
+
+    switch (action.action) {
+      case "more-info": {
+        const entityId = action.entity || player.entity;
+        if (entityId) {
+          fireEvent(this, "hass-more-info", { entityId });
+        }
+        break;
+      }
+      case "navigate":
+        if (action.navigation_path) {
+          window.history.pushState(null, "", action.navigation_path);
+          window.dispatchEvent(new Event("location-changed"));
+        }
+        break;
+      case "url": {
+        const url = action.url_path || action.url;
+        if (!url) {
+          return;
+        }
+
+        if (action.new_tab) {
+          window.open(url, "_blank", "noopener");
+        } else {
+          window.location.assign(url);
+        }
+        break;
+      }
+      case "call-service":
+        this._callService(action);
+        break;
+      default:
+        break;
+    }
+  }
+
+  _handleMediaControl(control, entityId, options = {}) {
+    if (!this._hass || !entityId) {
+      return;
+    }
+
+    switch (control) {
+      case "previous":
+        this._hass.callService("media_player", "media_previous_track", { entity_id: entityId });
+        break;
+      case "next":
+        this._hass.callService("media_player", "media_next_track", { entity_id: entityId });
+        break;
+      case "play-pause":
+        this._hass.callService("media_player", "media_play_pause", { entity_id: entityId });
+        break;
+      case "volume-down": {
+        const currentVolume = Number.isFinite(options.volume) ? options.volume : 0;
+        this._hass.callService("media_player", "volume_set", {
+          entity_id: entityId,
+          volume_level: clamp(currentVolume - 0.08, 0, 1),
+        });
+        break;
+      }
+      case "volume-up": {
+        const currentVolume = Number.isFinite(options.volume) ? options.volume : 0;
+        this._hass.callService("media_player", "volume_set", {
+          entity_id: entityId,
+          volume_level: clamp(currentVolume + 0.08, 0, 1),
+        });
+        break;
+      }
+      case "browse-media":
+        this._openMediaBrowser(entityId, options.path || "");
+        break;
+      default:
+        break;
+    }
+  }
+
+  _getMediaBrowserClient() {
+    if (typeof this._hass?.callWS === "function") {
+      return this._hass.callWS.bind(this._hass);
+    }
+
+    if (typeof this._hass?.connection?.sendMessagePromise === "function") {
+      return this._hass.connection.sendMessagePromise.bind(this._hass.connection);
+    }
+
+    return null;
+  }
+
+  _normalizeMediaBrowserItem(item) {
+    if (!item || typeof item !== "object") {
+      return null;
+    }
+
+    return {
+      title: item.title || item.name || "Elemento",
+      media_class: item.media_class || "",
+      media_content_id: item.media_content_id || "",
+      media_content_type: item.media_content_type || "",
+      can_play: item.can_play === true,
+      can_expand: item.can_expand === true,
+      thumbnail: item.thumbnail || item.thumbnail_url || "",
+      children: Array.isArray(item.children)
+        ? item.children.map(child => this._normalizeMediaBrowserItem(child)).filter(Boolean)
+        : [],
+    };
+  }
+
+  _normalizeMediaBrowserNode(result, entityId) {
+    let node = result;
+
+    if (node?.result && typeof node.result === "object") {
+      node = node.result;
+    }
+
+    if (node && entityId && typeof node[entityId] === "object") {
+      node = node[entityId];
+    }
+
+    const normalized = this._normalizeMediaBrowserItem(node);
+    if (!normalized) {
+      return null;
+    }
+
+    return {
+      ...normalized,
+      title: normalized.title || "Medios",
+    };
+  }
+
+  async _fetchMediaBrowserNode(entityId, mediaContentType = "", mediaContentId = "") {
+    const client = this._getMediaBrowserClient();
+    if (!client || !entityId) {
+      return null;
+    }
+
+    const payload = {
+      type: "media_player/browse_media",
+      entity_id: entityId,
+    };
+
+    if (mediaContentType) {
+      payload.media_content_type = mediaContentType;
+    }
+
+    if (mediaContentId) {
+      payload.media_content_id = mediaContentId;
+    }
+
+    const result = await client(payload);
+    return this._normalizeMediaBrowserNode(result, entityId);
+  }
+
+  _closeMediaBrowser(shouldRender = true) {
+    if (!this._mediaBrowserState) {
+      return;
+    }
+
+    this._mediaBrowserState = null;
+    this._mediaBrowserRequestToken += 1;
+
+    if (shouldRender) {
+      this._render();
+    }
+  }
+
+  async _openMediaBrowser(entityId, fallbackPath = "") {
+    if (!entityId) {
+      return;
+    }
+
+    const token = this._mediaBrowserRequestToken + 1;
+    this._mediaBrowserRequestToken = token;
+    this._mediaBrowserState = {
+      entityId,
+      fallbackPath,
+      isMusicAssistant: this._isMusicAssistantPlayer(
+        this._findPlayerConfig(entityId) || { entity: entityId },
+        this._hass?.states?.[entityId],
+      ),
+      loading: true,
+      error: "",
+      stack: [],
+    };
+    this._render();
+
+    try {
+      const rootNode = await this._fetchMediaBrowserNode(entityId);
+      if (this._mediaBrowserRequestToken !== token) {
+        return;
+      }
+
+      if (!rootNode) {
+        throw new Error("Empty media browser response");
+      }
+
+      this._mediaBrowserState = {
+        ...this._mediaBrowserState,
+        loading: false,
+        error: "",
+        stack: [rootNode],
+      };
+      this._render();
+    } catch (_error) {
+      if (this._mediaBrowserRequestToken !== token) {
+        return;
+      }
+
+      if (fallbackPath) {
+        this._mediaBrowserState = null;
+        window.history.pushState(null, "", fallbackPath);
+        window.dispatchEvent(new Event("location-changed"));
+        return;
+      }
+
+      this._mediaBrowserState = {
+        ...this._mediaBrowserState,
+        loading: false,
+        error: "No se pudieron cargar los medios.",
+        stack: [],
+      };
+      this._render();
+    }
+  }
+
+  async _browseMediaBrowserItem(mediaContentType, mediaContentId) {
+    if (!this._mediaBrowserState?.entityId) {
+      return;
+    }
+
+    const previousState = this._mediaBrowserState;
+    const token = this._mediaBrowserRequestToken + 1;
+    this._mediaBrowserRequestToken = token;
+    this._mediaBrowserState = {
+      ...previousState,
+      loading: true,
+      error: "",
+    };
+    this._render();
+
+    try {
+      const nextNode = await this._fetchMediaBrowserNode(
+        previousState.entityId,
+        mediaContentType,
+        mediaContentId,
+      );
+
+      if (this._mediaBrowserRequestToken !== token) {
+        return;
+      }
+
+      if (!nextNode) {
+        throw new Error("Empty media browser response");
+      }
+
+      this._mediaBrowserState = {
+        ...previousState,
+        loading: false,
+        error: "",
+        stack: [...previousState.stack, nextNode],
+      };
+      this._render();
+    } catch (_error) {
+      if (this._mediaBrowserRequestToken !== token) {
+        return;
+      }
+
+      this._mediaBrowserState = {
+        ...previousState,
+        loading: false,
+        error: "No se pudo abrir este elemento.",
+      };
+      this._render();
+    }
+  }
+
+  _goBackMediaBrowser() {
+    if (!this._mediaBrowserState) {
+      return;
+    }
+
+    if (this._mediaBrowserState.stack.length <= 1) {
+      this._closeMediaBrowser();
+      return;
+    }
+
+    this._mediaBrowserState = {
+      ...this._mediaBrowserState,
+      error: "",
+      loading: false,
+      stack: this._mediaBrowserState.stack.slice(0, -1),
+    };
+    this._render();
+  }
+
+  _playMediaBrowserItem(mediaContentType, mediaContentId) {
+    const entityId = this._mediaBrowserState?.entityId;
+
+    if (!this._hass || !entityId || !mediaContentType || !mediaContentId) {
+      return;
+    }
+
+    this._hass.callService("media_player", "play_media", {
+      entity_id: entityId,
+      media_content_id: mediaContentId,
+      media_content_type: mediaContentType,
+    });
+    this._closeMediaBrowser();
+  }
+
+  _getMusicAssistantDirectoryIcon(item) {
+    const haystack = normalizeTextKey([
+      item?.title,
+      item?.media_content_type,
+      item?.media_content_id,
+    ].filter(Boolean).join(" "));
+
+    const match = MUSIC_ASSISTANT_DIRECTORY_ICON_RULES.find(rule =>
+      rule.patterns.some(pattern => haystack.includes(pattern)),
+    );
+
+    return match?.icon || "";
+  }
+
+  _getMediaBrowserDisplayTitle(value) {
+    const label = typeof value === "string" ? value : value?.title;
+    const fallback = String(label || "").trim();
+
+    if (!fallback) {
+      return "Elemento";
+    }
+
+    if (!this._mediaBrowserState?.isMusicAssistant) {
+      return fallback;
+    }
+
+    const key = normalizeTextKey(fallback);
+    return MUSIC_ASSISTANT_LABEL_TRANSLATIONS[key] || fallback;
+  }
+
+  _getMediaBrowserIcon(item) {
+    const musicAssistantDirectoryIcon =
+      item?.media_class === "directory" ? this._getMusicAssistantDirectoryIcon(item) : "";
+
+    if (musicAssistantDirectoryIcon) {
+      return musicAssistantDirectoryIcon;
+    }
+
+    switch (item?.media_class) {
+      case "directory":
+        return "mdi:folder";
+      case "album":
+        return "mdi:album";
+      case "artist":
+        return "mdi:account-music";
+      case "playlist":
+        return "mdi:playlist-music";
+      case "track":
+      case "music":
+        return "mdi:music-note";
+      case "podcast":
+        return "mdi:podcast";
+      case "radio":
+        return "mdi:radio";
+      case "tv_show":
+        return "mdi:television";
+      case "video":
+      case "movie":
+        return "mdi:movie";
+      default:
+        return item?.can_expand ? "mdi:folder-outline" : "mdi:music-box";
+    }
+  }
+
+  _shouldFilterMusicAssistantBrowserItems() {
+    return Boolean(
+      this._mediaBrowserState?.isMusicAssistant &&
+      Array.isArray(this._mediaBrowserState?.stack) &&
+      this._mediaBrowserState.stack.length <= 1,
+    );
+  }
+
+  _shouldHideMediaBrowserItem(item) {
+    if (!this._shouldFilterMusicAssistantBrowserItems() || !item) {
+      return false;
+    }
+
+    const haystack = normalizeTextKey([
+      item.title,
+      item.media_class,
+      item.media_content_type,
+      item.media_content_id,
+    ].filter(Boolean).join(" "));
+
+    return MUSIC_ASSISTANT_BROWSER_EXCLUDE_PATTERNS.some(pattern => haystack.includes(pattern));
+  }
+
+  _onShadowClick(event) {
+    const mediaControlButton = event
+      .composedPath()
+      .find(node => node instanceof HTMLElement && node.dataset?.mediaControl);
+
+    if (mediaControlButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      this._triggerHaptic();
+      this._handleMediaControl(mediaControlButton.dataset.mediaControl, mediaControlButton.dataset.entity, {
+        path: mediaControlButton.dataset.mediaPath,
+        volume: Number(mediaControlButton.dataset.mediaVolume),
+      });
+      return;
+    }
+
+    const mediaToggleButton = event
+      .composedPath()
+      .find(node => node instanceof HTMLElement && node.dataset?.mediaToggle);
+
+    if (mediaToggleButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      this._triggerHaptic();
+      this._expanded = mediaToggleButton.dataset.mediaToggle === "expand";
+      this._render();
+      return;
+    }
+
+    const mediaDotButton = event
+      .composedPath()
+      .find(node => node instanceof HTMLElement && node.dataset?.mediaIndex !== undefined);
+
+    if (mediaDotButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      this._triggerHaptic();
+      this._activePlayerIndex = Number(mediaDotButton.dataset.mediaIndex);
+      this._render();
+      return;
+    }
+
+    const mediaBrowserCloseButton = event
+      .composedPath()
+      .find(node => node instanceof HTMLElement && node.dataset?.mediaBrowserClose === "true");
+
+    if (mediaBrowserCloseButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      this._closeMediaBrowser();
+      return;
+    }
+
+    const mediaBrowserBackButton = event
+      .composedPath()
+      .find(node => node instanceof HTMLElement && node.dataset?.mediaBrowserBack === "true");
+
+    if (mediaBrowserBackButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      this._goBackMediaBrowser();
+      return;
+    }
+
+    const mediaBrowserActionButton = event
+      .composedPath()
+      .find(node => node instanceof HTMLElement && node.dataset?.mediaBrowserAction);
+
+    if (mediaBrowserActionButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      this._triggerHaptic();
+
+      const action = mediaBrowserActionButton.dataset.mediaBrowserAction;
+      const mediaContentType = mediaBrowserActionButton.dataset.mediaContentType || "";
+      const mediaContentId = mediaBrowserActionButton.dataset.mediaContentId || "";
+
+      if (action === "browse") {
+        this._browseMediaBrowserItem(mediaContentType, mediaContentId);
+        return;
+      }
+
+      if (action === "play") {
+        this._playMediaBrowserItem(mediaContentType, mediaContentId);
+      }
+      return;
+    }
+
+    const mediaCard = event
+      .composedPath()
+      .find(node => node instanceof HTMLElement && node.dataset?.mediaCardIndex !== undefined);
+
+    if (mediaCard) {
+      const visiblePlayers = this._getVisiblePlayers();
+      const player = visiblePlayers[Number(mediaCard.dataset.mediaCardIndex)];
+
+      if (player) {
+        event.preventDefault();
+        event.stopPropagation();
+        this._triggerHaptic();
+        this._runPlayerAction(player, {
+          action: "more-info",
+          entity: player.entity,
         });
       }
     }
   }
 
-  render() {
-    if (!this._config) {
-      return html``;
+  _renderEmptyState() {
+    return `
+      <ha-card class="empty-card">
+        <div class="empty-card__title">Nodalia Media Player</div>
+        <div class="empty-card__text">Configura ` + "`entity`" + ` o ` + "`players`" + ` para mostrar un reproductor.</div>
+      </ha-card>
+    `;
+  }
+
+  _renderMediaBrowser() {
+    if (!this._mediaBrowserState) {
+      return "";
     }
 
-    return html`
-      <div class="editor">
-        <section class="section">
-          <h3>${this._t("editor.players")}</h3>
-          <p class="hint">${this._t("editor.playersHint")}</p>
-          <label>
-            <span>${this._t("editor.name")}</span>
-            <input
-              .value=${this._config.name || ""}
-              @input=${(event) => this._updateRoot("name", event.currentTarget.value)}
-            />
-          </label>
-          <label>
-            <span>${this._t("editor.players")}</span>
-            <textarea
-              .value=${this._entitiesText}
-              @input=${(event) => this._onEntitiesInput(event.currentTarget.value)}
-            ></textarea>
-          </label>
-        </section>
+    const currentNode = this._mediaBrowserState.stack[this._mediaBrowserState.stack.length - 1] || null;
+    const items = (Array.isArray(currentNode?.children) ? currentNode.children : []).filter(
+      item => !this._shouldHideMediaBrowserItem(item),
+    );
 
-        <section class="section">
-          <h3>${this._t("editor.appearance")}</h3>
-          <div class="grid">
-            <label>
-              <span>${this._t("editor.language")}</span>
-              <select
-                .value=${this._config.language || "auto"}
-                @change=${(event) => this._updateRoot("language", event.currentTarget.value)}
-              >
-                <option value="auto">${this._t("editor.languageAuto")}</option>
-                <option value="es">Espanol</option>
-                <option value="en">English</option>
-              </select>
-            </label>
-            <label>
-              <span>${this._t("editor.accentColor")}</span>
-              <input
-                .value=${this._config.appearance.accent_color}
-                @input=${(event) =>
-                  this._updateAppearance("accent_color", event.currentTarget.value)}
-              />
-            </label>
-            <label>
-              <span>${this._t("editor.artworkFit")}</span>
-              <select
-                .value=${this._config.appearance.artwork_fit}
-                @change=${(event) =>
-                  this._updateAppearance("artwork_fit", event.currentTarget.value)}
-              >
-                <option value="cover">${this._t("editor.fitCover")}</option>
-                <option value="contain">${this._t("editor.fitContain")}</option>
-              </select>
-            </label>
-            <label>
-              <span>${this._t("editor.theme")}</span>
-              <select
-                .value=${this._config.appearance.theme}
-                @change=${(event) => this._updateAppearance("theme", event.currentTarget.value)}
-              >
-                <option value="auto">${this._t("editor.themeAuto")}</option>
-                <option value="light">${this._t("editor.themeLight")}</option>
-                <option value="dark">${this._t("editor.themeDark")}</option>
-              </select>
-            </label>
-          </div>
-          <div class="toggle-grid">
-            <label class="toggle">
-              <input
-                type="checkbox"
-                .checked=${Boolean(this._config.appearance.blur_background)}
-                @change=${(event) =>
-                  this._updateAppearance("blur_background", event.currentTarget.checked)}
-              />
-              <span>${this._t("editor.blurBackground")}</span>
-            </label>
-          </div>
-        </section>
+    const bodyMarkup = this._mediaBrowserState.loading
+      ? `<div class="media-browser__empty">Cargando medios...</div>`
+      : this._mediaBrowserState.error
+        ? `<div class="media-browser__empty">${escapeHtml(this._mediaBrowserState.error)}</div>`
+        : items.length === 0
+          ? `<div class="media-browser__empty">No hay elementos disponibles aqui.</div>`
+          : `
+            <div class="media-browser__list">
+              ${items
+                .map(item => {
+                  const canExpand = item.can_expand === true;
+                  const canPlay = item.can_play === true;
+                  const defaultAction = canExpand ? "browse" : canPlay ? "play" : "";
+                  const itemIcon = this._getMediaBrowserIcon(item);
+                  const itemTitle = this._getMediaBrowserDisplayTitle(item);
 
-        <section class="section">
-          <h3>${this._t("editor.behavior")}</h3>
-          <div class="toggle-grid">
-            <label class="toggle">
-              <input
-                type="checkbox"
-                .checked=${Boolean(this._config.behavior.auto_select_active)}
-                @change=${(event) =>
-                  this._updateBehavior("auto_select_active", event.currentTarget.checked)}
-              />
-              <span>${this._t("editor.autoSelect")}</span>
-            </label>
-            <label class="toggle">
-              <input
-                type="checkbox"
-                .checked=${Boolean(this._config.behavior.collapse_when_idle)}
-                @change=${(event) =>
-                  this._updateBehavior("collapse_when_idle", event.currentTarget.checked)}
-              />
-              <span>${this._t("editor.collapseWhenIdle")}</span>
-            </label>
-            <label class="toggle">
-              <input
-                type="checkbox"
-                .checked=${Boolean(this._config.behavior.expanded_by_default)}
-                @change=${(event) =>
-                  this._updateBehavior("expanded_by_default", event.currentTarget.checked)}
-              />
-              <span>${this._t("editor.showExpandedByDefault")}</span>
-            </label>
-            <label class="toggle">
-              <input
-                type="checkbox"
-                .checked=${Boolean(this._config.behavior.show_timestamps)}
-                @change=${(event) =>
-                  this._updateBehavior("show_timestamps", event.currentTarget.checked)}
-              />
-              <span>${this._t("editor.showTimestamps")}</span>
-            </label>
-            <label class="toggle">
-              <input
-                type="checkbox"
-                .checked=${Boolean(this._config.behavior.show_volume)}
-                @change=${(event) =>
-                  this._updateBehavior("show_volume", event.currentTarget.checked)}
-              />
-              <span>${this._t("editor.showVolume")}</span>
-            </label>
-            <label class="toggle">
-              <input
-                type="checkbox"
-                .checked=${Boolean(this._config.behavior.show_sources)}
-                @change=${(event) =>
-                  this._updateBehavior("show_sources", event.currentTarget.checked)}
-              />
-              <span>${this._t("editor.showSources")}</span>
-            </label>
-            <label class="toggle">
-              <input
-                type="checkbox"
-                .checked=${Boolean(this._config.behavior.show_group_controls)}
-                @change=${(event) =>
-                  this._updateBehavior("show_group_controls", event.currentTarget.checked)}
-              />
-              <span>${this._t("editor.showGroupControls")}</span>
-            </label>
-            <label class="toggle">
-              <input
-                type="checkbox"
-                .checked=${Boolean(this._config.behavior.show_details)}
-                @change=${(event) =>
-                  this._updateBehavior("show_details", event.currentTarget.checked)}
-              />
-              <span>${this._t("editor.showDetails")}</span>
-            </label>
-            <label class="toggle">
-              <input
-                type="checkbox"
-                .checked=${Boolean(this._config.behavior.enable_seek)}
-                @change=${(event) =>
-                  this._updateBehavior("enable_seek", event.currentTarget.checked)}
-              />
-              <span>${this._t("editor.enableSeek")}</span>
-            </label>
-            <label class="toggle">
-              <input
-                type="checkbox"
-                .checked=${Boolean(this._config.queue.enabled)}
-                @change=${(event) =>
-                  this._updateQueue(undefined, event.currentTarget.checked)}
-              />
-              <span>${this._t("editor.queueEnabled")}</span>
-            </label>
-          </div>
-          <div class="grid">
-            <label>
-              <span>${this._t("editor.queueLimit")}</span>
-              <input
-                type="number"
-                min="1"
-                max="20"
-                .value=${String(this._config.queue.limit)}
-                @input=${(event) =>
-                  this._updateQueue(Number(event.currentTarget.value), undefined)}
-              />
-            </label>
-          </div>
-        </section>
+                  return `
+                    <div class="media-browser__item">
+                      <button
+                        type="button"
+                        class="media-browser__item-main"
+                        ${defaultAction ? `data-media-browser-action="${defaultAction}"` : "disabled"}
+                        data-media-content-type="${escapeHtml(item.media_content_type || "")}"
+                        data-media-content-id="${escapeHtml(item.media_content_id || "")}"
+                      >
+                        <span class="media-browser__item-artwork">
+                          ${
+                            item.thumbnail
+                              ? `<img src="${escapeHtml(item.thumbnail)}" alt="${escapeHtml(itemTitle)}" />`
+                              : `<ha-icon icon="${escapeHtml(itemIcon)}"></ha-icon>`
+                          }
+                        </span>
+                        <span class="media-browser__item-copy">
+                          <span class="media-browser__item-title">${escapeHtml(itemTitle)}</span>
+                        </span>
+                        ${
+                          canExpand
+                            ? `<ha-icon class="media-browser__item-chevron" icon="mdi:chevron-right"></ha-icon>`
+                            : ""
+                        }
+                      </button>
+                      ${
+                        canPlay && canExpand
+                          ? `
+                            <button
+                              type="button"
+                              class="media-browser__item-play"
+                              data-media-browser-action="play"
+                              data-media-content-type="${escapeHtml(item.media_content_type || "")}"
+                              data-media-content-id="${escapeHtml(item.media_content_id || "")}"
+                              aria-label="Reproducir ${escapeHtml(itemTitle)}"
+                            >
+                              <ha-icon icon="mdi:play"></ha-icon>
+                            </button>
+                          `
+                          : ""
+                      }
+                    </div>
+                  `;
+                })
+                .join("")}
+            </div>
+          `;
 
-        <section class="section">
-          <h3>${this._t("editor.actions")}</h3>
-          <p class="hint">${this._t("editor.actionsHint")}</p>
-          <textarea
-            .value=${this._actionsText}
-            @input=${(event) => this._onActionsInput(event.currentTarget.value)}
-          ></textarea>
-          ${this._actionsError ? html`<div class="error">${this._actionsError}</div>` : html``}
-        </section>
+    return `
+      <div class="media-browser-backdrop" data-media-browser-close="true"></div>
+      <div class="media-browser-panel" role="dialog" aria-modal="true" aria-label="Navegador de medios">
+        <div class="media-browser__header">
+          <button
+            type="button"
+            class="media-browser__header-button"
+            data-media-browser-back="true"
+            aria-label="Volver"
+          >
+            <ha-icon icon="mdi:chevron-left"></ha-icon>
+          </button>
+          <div class="media-browser__header-copy">
+            <div class="media-browser__eyebrow">Music Assistant</div>
+            <div class="media-browser__title">${escapeHtml(this._getMediaBrowserDisplayTitle(currentNode?.title || "Medios"))}</div>
+          </div>
+          <button
+            type="button"
+            class="media-browser__header-button"
+            data-media-browser-close="true"
+            aria-label="Cerrar"
+          >
+            <ha-icon icon="mdi:close"></ha-icon>
+          </button>
+        </div>
+        ${bodyMarkup}
       </div>
+    `;
+  }
+
+  _renderPlayerCard(players) {
+    if (!players.length) {
+      return "";
+    }
+
+    this._activePlayerIndex = clamp(this._activePlayerIndex, 0, players.length - 1);
+
+    const player = players[this._activePlayerIndex];
+    const state = this._hass?.states?.[player.entity];
+    if (!state) {
+      return "";
+    }
+
+    const artwork = this._getPlayerArtwork(player, state);
+    const title = this._getPlayerTitle(player, state);
+    const subtitle = this._getPlayerSubtitle(player, state);
+    const subtitleMarkup = subtitle && normalizeTextKey(subtitle) !== normalizeTextKey(title)
+      ? `<div class="media-player__subtitle">${escapeHtml(subtitle)}</div>`
+      : "";
+    const progress = this._getPlayerProgress(state);
+    const chips = this._getPlayerChips(player, state, progress, title, subtitle);
+    const playerLabel = this._getPlayerLabel(player, state);
+    const statusLabel = this._getPlayerStateLabel(state.state);
+    const browsePath = this._getPlayerBrowsePath(player, state);
+    const volumeLevel = Number(state.attributes.volume_level ?? 0);
+    const volumeSupported = this._supportsVolumeControl(state);
+    const playerStyles = this._config.styles.player;
+
+    const volumeDownMarkup = volumeSupported
+      ? `
+        <button
+          type="button"
+          class="media-player__volume-button"
+          data-media-control="volume-down"
+          data-entity="${escapeHtml(player.entity)}"
+          data-media-volume="${volumeLevel}"
+          aria-label="Bajar volumen"
+        >
+          <ha-icon icon="mdi:minus"></ha-icon>
+        </button>
+      `
+      : "";
+    const volumeUpMarkup = volumeSupported
+      ? `
+        <button
+          type="button"
+          class="media-player__volume-button"
+          data-media-control="volume-up"
+          data-entity="${escapeHtml(player.entity)}"
+          data-media-volume="${volumeLevel}"
+          aria-label="Subir volumen"
+        >
+          <ha-icon icon="mdi:plus"></ha-icon>
+        </button>
+      `
+      : "";
+    const browseMarkup = browsePath
+      ? `
+        <div class="media-player__transport-addon">
+          <button
+            type="button"
+            class="media-player__volume-button media-player__volume-button--browse"
+            data-media-control="browse-media"
+            data-entity="${escapeHtml(player.entity)}"
+            data-media-path="${escapeHtml(browsePath)}"
+            aria-label="Abrir medios"
+          >
+            <ha-icon icon="mdi:music-box-multiple-outline"></ha-icon>
+          </button>
+        </div>
+      `
+      : "";
+    const dotsMarkup = players.length > 1
+      ? `
+        <div class="media-player__dots" aria-label="Media players">
+          ${players
+            .map(
+              (_item, index) => `
+                <button
+                  type="button"
+                  class="media-player__dot ${index === this._activePlayerIndex ? "active" : ""}"
+                  data-media-index="${index}"
+                  aria-label="Seleccionar reproductor ${index + 1}"
+                ></button>
+              `,
+            )
+            .join("")}
+        </div>
+      `
+      : "";
+    const chipsMarkup = chips.length
+      ? `
+        <div class="media-player__chips-wrap">
+          <div class="media-player__chips">
+            ${chips
+              .map(
+                chip => `
+                  <span class="media-player__chip media-player__chip--${escapeHtml(chip.tone)}">
+                    ${escapeHtml(chip.label)}
+                  </span>
+                `,
+              )
+              .join("")}
+          </div>
+        </div>
+      `
+      : "";
+
+    return `
+      <div
+        class="media-player-card ${this._config.album_cover_background && artwork ? "has-album-background" : ""}"
+        data-media-card-index="${this._activePlayerIndex}"
+      >
+        ${
+          this._config.album_cover_background && artwork
+            ? `<div class="media-player__album-bg" style="background-image:url('${escapeHtml(artwork)}');"></div>`
+            : ""
+        }
+        ${
+          progress
+            ? `
+              <div class="media-player__progress">
+                <span class="media-player__progress-fill" style="width:${progress.percent}%"></span>
+              </div>
+            `
+            : ""
+        }
+        <button
+          type="button"
+          class="media-player__collapse"
+          data-media-toggle="collapse"
+          aria-label="Ocultar reproductor"
+        >
+          <ha-icon icon="mdi:chevron-down"></ha-icon>
+        </button>
+        <div class="media-player__status-wrap">
+          <span class="media-player__chip media-player__chip--${escapeHtml(state.state || "default")} media-player__chip--status">
+            ${escapeHtml(statusLabel)}
+          </span>
+        </div>
+        <div class="media-player__content">
+          <div class="media-player__topline">
+            <span class="media-player__chip media-player__chip--device media-player__chip--top">
+              ${escapeHtml(playerLabel)}
+            </span>
+          </div>
+          <div class="media-player__hero">
+            <div class="media-player__artwork">
+              ${
+                artwork
+                  ? `<img src="${escapeHtml(artwork)}" alt="${escapeHtml(title)}" />`
+                  : `<ha-icon icon="${escapeHtml(player.icon || "mdi:music")}"></ha-icon>`
+              }
+            </div>
+            <div class="media-player__meta">
+              <div class="media-player__title">${escapeHtml(title)}</div>
+              ${subtitleMarkup}
+            </div>
+          </div>
+          <div class="media-player__center-stack">
+            ${dotsMarkup ? `<div class="media-player__switcher">${dotsMarkup}</div>` : ""}
+            <div class="media-player__transport-row">
+              <div class="media-player__transport-shell">
+                <div class="media-player__transport-cluster">
+                  ${volumeDownMarkup}
+                  <div class="media-player__transport">
+                    <button
+                      type="button"
+                      class="media-player__control"
+                      data-media-control="previous"
+                      data-entity="${escapeHtml(player.entity)}"
+                      aria-label="Anterior"
+                    >
+                      <ha-icon icon="mdi:skip-previous"></ha-icon>
+                    </button>
+                    <button
+                      type="button"
+                      class="media-player__control media-player__control--primary"
+                      data-media-control="play-pause"
+                      data-entity="${escapeHtml(player.entity)}"
+                      aria-label="Play o pausa"
+                    >
+                      <ha-icon icon="${escapeHtml(state.state === "playing" ? "mdi:pause" : "mdi:play")}"></ha-icon>
+                    </button>
+                    <button
+                      type="button"
+                      class="media-player__control"
+                      data-media-control="next"
+                      data-entity="${escapeHtml(player.entity)}"
+                      aria-label="Siguiente"
+                    >
+                      <ha-icon icon="mdi:skip-next"></ha-icon>
+                    </button>
+                  </div>
+                  ${volumeUpMarkup}
+                </div>
+                ${browseMarkup}
+              </div>
+            </div>
+          </div>
+          <div class="media-player__footer">
+            ${chipsMarkup}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  _renderPlayerToggle(players) {
+    if (!players.length) {
+      return "";
+    }
+
+    this._activePlayerIndex = clamp(this._activePlayerIndex, 0, players.length - 1);
+    const player = players[this._activePlayerIndex];
+    const state = this._hass?.states?.[player.entity];
+    if (!state) {
+      return "";
+    }
+
+    const artwork = this._getPlayerArtwork(player, state);
+    const title = this._getPlayerTitle(player, state);
+    const subtitle = this._getPlayerStateLabel(state.state);
+
+    return `
+      <div class="media-player-toggle-wrap">
+        <button
+          type="button"
+          class="media-player-toggle"
+          data-media-toggle="expand"
+          aria-label="Mostrar reproductor"
+        >
+          <span class="media-player-toggle__artwork">
+            ${
+              artwork
+                ? `<img src="${escapeHtml(artwork)}" alt="${escapeHtml(title)}" />`
+                : `<ha-icon icon="${escapeHtml(player.icon || "mdi:music")}"></ha-icon>`
+            }
+          </span>
+          <span class="media-player-toggle__meta">
+            <span class="media-player-toggle__eyebrow">${escapeHtml(subtitle)}</span>
+            <span class="media-player-toggle__title">${escapeHtml(title)}</span>
+          </span>
+          <ha-icon class="media-player-toggle__icon" icon="mdi:chevron-up"></ha-icon>
+        </button>
+      </div>
+    `;
+  }
+
+  _render() {
+    if (!this.shadowRoot) {
+      return;
+    }
+
+    if (!this._config) {
+      this.shadowRoot.innerHTML = "";
+      return;
+    }
+
+    if (this._shouldHideForScreen()) {
+      this.shadowRoot.innerHTML = "";
+      return;
+    }
+
+    const inEditMode = this._isInEditMode();
+    const players = this._getVisiblePlayers();
+    const hasPlayers = players.length > 0;
+
+    if (!hasPlayers) {
+      this._expanded = this._config.default_view === "expanded" ? true : false;
+    }
+
+    const showExpanded = hasPlayers && (this._expanded === true || (this._expanded === null && this._config.default_view === "expanded"));
+    const showToggle = hasPlayers && !showExpanded;
+    const isFixed = this._config.layout.fixed && !inEditMode;
+    const spacerHeight = isFixed ? this._getReservedHeight(showExpanded, showToggle) : "0px";
+    const mediaBrowserMarkup = this._renderMediaBrowser();
+    const titleMarkup = this._config.title
+      ? `<div class="card-title">${escapeHtml(this._config.title)}</div>`
+      : "";
+
+    this._syncTicker(showExpanded ? players : []);
+
+    const contentMarkup = hasPlayers
+      ? `
+          ${showToggle ? this._renderPlayerToggle(players) : ""}
+          ${showExpanded ? this._renderPlayerCard(players) : ""}
+        `
+      : inEditMode
+        ? this._renderEmptyState()
+        : "";
+
+    const config = this._config;
+    const playerStyles = config.styles.player;
+    const toggleStyles = config.styles.toggle;
+    const browserStyles = config.styles.browser;
+
+    this.shadowRoot.innerHTML = `
+      <style>
+        :host {
+          display: block;
+          width: 100%;
+        }
+
+        * {
+          box-sizing: border-box;
+        }
+
+        .spacer {
+          display: ${isFixed && config.layout.reserve_space ? "block" : "none"};
+          height: ${spacerHeight};
+        }
+
+        .dock {
+          position: ${isFixed ? "fixed" : "relative"};
+          left: ${config.layout.side_margin};
+          right: ${config.layout.side_margin};
+          ${config.layout.position === "top" ? `top: ${config.layout.offset};` : `bottom: ${config.layout.offset};`}
+          z-index: ${config.layout.z_index};
+          pointer-events: none;
+        }
+
+        .dock-inner {
+          margin: 0 auto;
+          max-width: ${config.layout.max_width};
+          pointer-events: auto;
+          width: 100%;
+        }
+
+        .player-stack {
+          display: grid;
+          gap: 0;
+        }
+
+        .card-title {
+          color: var(--primary-text-color);
+          font-size: 13px;
+          font-weight: 700;
+          margin: 0 0 8px 8px;
+        }
+
+        .empty-card,
+        .media-player-card {
+          background: ${playerStyles.background};
+          border: ${playerStyles.border};
+          border-radius: ${playerStyles.border_radius};
+          box-shadow: ${playerStyles.box_shadow};
+          min-height: ${playerStyles.min_height};
+          overflow: hidden;
+          padding: ${playerStyles.padding};
+          position: relative;
+        }
+
+        .empty-card {
+          display: grid;
+          gap: 6px;
+          min-height: 100px;
+        }
+
+        .empty-card__title {
+          color: var(--primary-text-color);
+          font-size: 15px;
+          font-weight: 700;
+        }
+
+        .empty-card__text {
+          color: var(--secondary-text-color);
+          font-size: 13px;
+          line-height: 1.5;
+        }
+
+        .media-player-card::before {
+          background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0));
+          content: "";
+          inset: 0;
+          pointer-events: none;
+          position: absolute;
+          z-index: 0;
+        }
+
+        .media-player-card.has-album-background::after {
+          background: linear-gradient(
+            180deg,
+            rgba(0, 0, 0, 0.08),
+            ${playerStyles.overlay_color},
+            rgba(0, 0, 0, 0.16)
+          );
+          content: "";
+          inset: 0;
+          position: absolute;
+          z-index: 0;
+        }
+
+        .media-player__album-bg {
+          background-position: center;
+          background-size: cover;
+          filter: blur(30px) saturate(0.82);
+          inset: -24px;
+          opacity: 0.38;
+          position: absolute;
+          transform: scale(1.14);
+          z-index: -1;
+        }
+
+        .media-player__progress {
+          background: ${playerStyles.progress_background};
+          border-radius: 999px;
+          bottom: 10px;
+          height: 6px;
+          inset-inline: 14px;
+          overflow: hidden;
+          position: absolute;
+          z-index: 1;
+        }
+
+        .media-player__progress-fill {
+          background: ${playerStyles.progress_color};
+          display: block;
+          height: 100%;
+        }
+
+        .media-player__content,
+        .media-player__dots {
+          position: relative;
+          z-index: 1;
+        }
+
+        .media-player__content {
+          align-content: start;
+          display: grid;
+          gap: 14px;
+          padding-bottom: 12px;
+        }
+
+        .media-player__topline {
+          display: flex;
+          justify-content: center;
+          min-height: 28px;
+          padding-inline: 42px;
+          width: 100%;
+        }
+
+        .media-player__hero {
+          align-items: start;
+          display: grid;
+          gap: 14px;
+          grid-template-columns: ${playerStyles.artwork_size} minmax(0, 1fr);
+          padding-right: clamp(52px, 24vw, 168px);
+        }
+
+        .media-player__artwork {
+          align-items: center;
+          background: rgba(255, 255, 255, 0.08);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 22px;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 24px rgba(0, 0, 0, 0.18);
+          display: flex;
+          height: ${playerStyles.artwork_size};
+          justify-content: center;
+          overflow: hidden;
+          width: ${playerStyles.artwork_size};
+        }
+
+        .media-player__artwork img,
+        .media-player__artwork ha-icon {
+          height: 100%;
+          object-fit: cover;
+          width: 100%;
+        }
+
+        .media-player__artwork ha-icon {
+          font-size: calc(${playerStyles.artwork_size} * 0.52);
+          padding: 14px;
+        }
+
+        .media-player__meta {
+          display: grid;
+          gap: 4px;
+          min-width: 0;
+        }
+
+        .media-player__title,
+        .media-player__subtitle {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .media-player__title {
+          color: var(--primary-text-color);
+          font-size: ${playerStyles.title_size};
+          font-weight: 700;
+        }
+
+        .media-player__subtitle {
+          color: var(--secondary-text-color);
+          font-size: ${playerStyles.subtitle_size};
+        }
+
+        .media-player__center-stack {
+          display: grid;
+          gap: 12px;
+          justify-items: center;
+        }
+
+        .media-player__switcher {
+          display: flex;
+          justify-content: center;
+          width: 100%;
+        }
+
+        .media-player__status-wrap {
+          display: flex;
+          justify-content: flex-end;
+          max-width: calc(100% - 28px);
+          pointer-events: none;
+          position: absolute;
+          right: 14px;
+          top: 48px;
+          z-index: 2;
+        }
+
+        .media-player__transport-row {
+          align-items: center;
+          display: flex;
+          justify-content: center;
+          width: 100%;
+        }
+
+        .media-player__transport-shell {
+          align-items: center;
+          display: inline-flex;
+          justify-content: center;
+          position: relative;
+          width: auto;
+        }
+
+        .media-player__transport-cluster {
+          align-items: center;
+          display: inline-flex;
+          gap: 10px;
+          justify-content: center;
+          width: auto;
+        }
+
+        .media-player__transport-addon {
+          align-items: center;
+          display: inline-flex;
+          left: calc(100% + 10px);
+          position: absolute;
+          top: 50%;
+          transform: translateY(-50%);
+        }
+
+        .media-player__transport {
+          align-items: center;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          border-radius: 999px;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+          display: inline-flex;
+          gap: 8px;
+          margin: 0 auto;
+          padding: 6px;
+        }
+
+        .media-player__footer {
+          align-items: center;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          justify-content: center;
+        }
+
+        .media-player__chips {
+          align-items: center;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          justify-content: center;
+          min-width: 0;
+        }
+
+        .media-player__chips-wrap {
+          display: flex;
+          justify-content: center;
+          width: 100%;
+        }
+
+        .media-player__chip {
+          align-items: center;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          border-radius: 999px;
+          color: var(--secondary-text-color);
+          display: inline-flex;
+          font-size: ${playerStyles.subtitle_size};
+          font-weight: 600;
+          line-height: 1;
+          max-width: 100%;
+          min-height: 28px;
+          overflow: hidden;
+          padding: 0 10px;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .media-player__chip--top {
+          justify-content: center;
+          max-width: min(100%, 320px);
+          text-align: center;
+        }
+
+        .media-player__chip--status {
+          max-width: min(100%, 160px);
+        }
+
+        .media-player__chip--playing {
+          background: rgba(var(--rgb-primary-color), 0.16);
+          border-color: rgba(var(--rgb-primary-color), 0.22);
+          color: ${playerStyles.accent_color};
+        }
+
+        .media-player__chip--paused,
+        .media-player__chip--buffering,
+        .media-player__chip--device,
+        .media-player__chip--source {
+          color: var(--primary-text-color);
+        }
+
+        .media-player__chip--time {
+          font-variant-numeric: tabular-nums;
+        }
+
+        .media-player__control,
+        .media-player__volume-button {
+          align-items: center;
+          appearance: none;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          border-radius: 999px;
+          color: var(--primary-text-color);
+          cursor: pointer;
+          display: inline-flex;
+          justify-content: center;
+          line-height: 0;
+          position: relative;
+        }
+
+        .media-player__control {
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+          height: ${playerStyles.control_size};
+          width: ${playerStyles.control_size};
+        }
+
+        .media-player__control--primary {
+          background: ${playerStyles.accent_background};
+          border-color: rgba(var(--rgb-primary-color), 0.24);
+          color: ${playerStyles.accent_color};
+          height: calc(${playerStyles.control_size} + 6px);
+          width: calc(${playerStyles.control_size} + 6px);
+        }
+
+        .media-player__volume-button {
+          flex: 0 0 auto;
+          height: calc(${playerStyles.control_size} - 4px);
+          padding: 0;
+          width: calc(${playerStyles.control_size} - 4px);
+        }
+
+        .media-player__control ha-icon {
+          align-items: center;
+          display: inline-flex;
+          font-size: 22px;
+          height: 22px;
+          justify-content: center;
+          left: 50%;
+          line-height: 1;
+          position: absolute;
+          top: 50%;
+          transform: translate(-50%, -50%);
+          width: 22px;
+        }
+
+        .media-player__volume-button ha-icon {
+          align-items: center;
+          display: inline-flex;
+          font-size: 20px;
+          height: 20px;
+          justify-content: center;
+          left: 50%;
+          line-height: 1;
+          position: absolute;
+          top: 50%;
+          transform: translate(-50%, -50%);
+          width: 20px;
+        }
+
+        .media-player__dots {
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          border-radius: 999px;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+          display: inline-flex;
+          gap: 4px;
+          justify-content: center;
+          padding: 4px;
+        }
+
+        .media-player__dot {
+          align-items: center;
+          appearance: none;
+          background: transparent;
+          border: 0;
+          border-radius: 999px;
+          cursor: pointer;
+          display: inline-flex;
+          height: 28px;
+          justify-content: center;
+          padding: 0;
+          position: relative;
+          width: 28px;
+        }
+
+        .media-player__dot::before {
+          background: rgba(255, 255, 255, 0.18);
+          border-radius: 999px;
+          content: "";
+          height: ${playerStyles.dot_size};
+          transition: background 160ms ease, width 160ms ease;
+          width: ${playerStyles.dot_size};
+        }
+
+        .media-player__dot.active::before {
+          background: ${playerStyles.accent_color};
+          width: calc(${playerStyles.dot_size} + 10px);
+        }
+
+        .media-player__collapse {
+          align-items: center;
+          appearance: none;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          border-radius: 999px;
+          color: var(--primary-text-color);
+          cursor: pointer;
+          display: inline-flex;
+          height: 28px;
+          justify-content: center;
+          padding: 0;
+          position: absolute;
+          right: 14px;
+          top: 14px;
+          width: 28px;
+          z-index: 2;
+        }
+
+        .media-player__collapse ha-icon {
+          font-size: 18px;
+        }
+
+        .media-player-toggle-wrap {
+          display: flex;
+          justify-content: center;
+          width: 100%;
+        }
+
+        .media-player-toggle {
+          align-items: center;
+          appearance: none;
+          background: ${toggleStyles.background};
+          border: ${toggleStyles.border};
+          border-radius: ${toggleStyles.border_radius};
+          box-shadow: ${toggleStyles.box_shadow};
+          color: var(--primary-text-color);
+          cursor: pointer;
+          display: inline-flex;
+          gap: 10px;
+          max-width: min(100%, 320px);
+          min-height: ${toggleStyles.min_height};
+          padding: ${toggleStyles.padding};
+          width: auto;
+        }
+
+        .media-player-toggle__artwork {
+          align-items: center;
+          background: rgba(255, 255, 255, 0.08);
+          border-radius: 999px;
+          display: inline-flex;
+          flex: 0 0 auto;
+          height: ${toggleStyles.artwork_size};
+          justify-content: center;
+          overflow: hidden;
+          width: ${toggleStyles.artwork_size};
+        }
+
+        .media-player-toggle__artwork img,
+        .media-player-toggle__artwork ha-icon {
+          height: 100%;
+          object-fit: cover;
+          width: 100%;
+        }
+
+        .media-player-toggle__artwork ha-icon {
+          font-size: 18px;
+          padding: 7px;
+        }
+
+        .media-player-toggle__meta {
+          display: grid;
+          flex: 1 1 auto;
+          gap: 2px;
+          min-width: 0;
+          text-align: left;
+        }
+
+        .media-player-toggle__eyebrow,
+        .media-player-toggle__title {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .media-player-toggle__eyebrow {
+          color: var(--secondary-text-color);
+          font-size: ${toggleStyles.subtitle_size};
+          font-weight: 600;
+        }
+
+        .media-player-toggle__title {
+          color: var(--primary-text-color);
+          font-size: ${toggleStyles.title_size};
+          font-weight: 700;
+        }
+
+        .media-player-toggle__icon {
+          color: var(--secondary-text-color);
+          flex: 0 0 auto;
+          font-size: 18px;
+        }
+
+        .media-browser-backdrop {
+          background: ${browserStyles.backdrop};
+          inset: 0;
+          position: fixed;
+          z-index: ${Number(config.layout.z_index) + 10};
+        }
+
+        .media-browser-panel {
+          background: ${browserStyles.background};
+          border: ${browserStyles.border};
+          border-radius: ${browserStyles.border_radius};
+          box-shadow: ${playerStyles.box_shadow}, ${browserStyles.box_shadow};
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+          inset: max(16px, calc(env(safe-area-inset-top, 0px) + 12px)) 12px max(16px, calc(env(safe-area-inset-bottom, 0px) + 12px)) 12px;
+          margin: 0 auto;
+          max-width: 560px;
+          overflow: hidden;
+          padding: 14px;
+          position: fixed;
+          z-index: ${Number(config.layout.z_index) + 11};
+        }
+
+        .media-browser__header {
+          align-items: center;
+          display: grid;
+          gap: 12px;
+          grid-template-columns: 40px minmax(0, 1fr) 40px;
+        }
+
+        .media-browser__header-copy {
+          min-width: 0;
+          text-align: center;
+        }
+
+        .media-browser__eyebrow {
+          color: var(--secondary-text-color);
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+        }
+
+        .media-browser__title {
+          color: var(--primary-text-color);
+          font-size: 16px;
+          font-weight: 700;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .media-browser__header-button,
+        .media-browser__item-play {
+          align-items: center;
+          appearance: none;
+          background: rgba(255, 255, 255, 0.05);
+          border: 1px solid rgba(255, 255, 255, 0.06);
+          border-radius: 999px;
+          color: var(--primary-text-color);
+          cursor: pointer;
+          display: inline-flex;
+          height: 40px;
+          justify-content: center;
+          padding: 0;
+          width: 40px;
+        }
+
+        .media-browser__header-button ha-icon,
+        .media-browser__item-play ha-icon {
+          font-size: 20px;
+        }
+
+        .media-browser__list {
+          display: grid;
+          gap: 10px;
+          min-height: 0;
+          overflow: auto;
+          padding-right: 2px;
+        }
+
+        .media-browser__item {
+          align-items: center;
+          display: grid;
+          gap: 8px;
+          grid-template-columns: minmax(0, 1fr) auto;
+        }
+
+        .media-browser__item-main {
+          align-items: center;
+          appearance: none;
+          background: rgba(255, 255, 255, 0.03);
+          border: 1px solid rgba(255, 255, 255, 0.05);
+          border-radius: 20px;
+          color: var(--primary-text-color);
+          cursor: pointer;
+          display: grid;
+          gap: 12px;
+          grid-template-columns: 46px minmax(0, 1fr) auto;
+          min-height: 58px;
+          padding: 8px 10px;
+          text-align: left;
+          width: 100%;
+        }
+
+        .media-browser__item-main:disabled {
+          cursor: default;
+          opacity: 0.72;
+        }
+
+        .media-browser__item-artwork {
+          align-items: center;
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 14px;
+          display: inline-flex;
+          height: 46px;
+          justify-content: center;
+          overflow: hidden;
+          width: 46px;
+        }
+
+        .media-browser__item-artwork img,
+        .media-browser__item-artwork ha-icon {
+          height: 100%;
+          object-fit: cover;
+          width: 100%;
+        }
+
+        .media-browser__item-artwork ha-icon {
+          font-size: 22px;
+          padding: 11px;
+        }
+
+        .media-browser__item-copy {
+          display: grid;
+          gap: 2px;
+          min-width: 0;
+        }
+
+        .media-browser__item-title {
+          color: var(--primary-text-color);
+          font-size: 14px;
+          font-weight: 700;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .media-browser__item-chevron {
+          color: var(--secondary-text-color);
+          font-size: 20px;
+        }
+
+        .media-browser__empty {
+          align-items: center;
+          color: var(--secondary-text-color);
+          display: flex;
+          flex: 1 1 auto;
+          font-size: 13px;
+          justify-content: center;
+          line-height: 1.5;
+          min-height: 120px;
+          padding: 12px;
+          text-align: center;
+        }
+
+        @media (max-width: 520px) {
+          .media-player__footer {
+            justify-content: center;
+          }
+        }
+
+        @media (max-width: 420px) {
+          .media-player__hero {
+            grid-template-columns: ${playerStyles.artwork_size} minmax(0, 1fr);
+          }
+        }
+      </style>
+      <div class="spacer" aria-hidden="true"></div>
+      <div class="dock">
+        <div class="dock-inner">
+          <div class="player-stack">
+            ${titleMarkup}
+            ${contentMarkup}
+          </div>
+        </div>
+      </div>
+      ${mediaBrowserMarkup}
     `;
   }
 }
 
-class NodaliaMediaPlayer extends LitElement {
-  static get properties() {
-    return {
-      hass: {},
-      _config: { state: true },
-      _selectedEntityId: { state: true },
-      _detailsOpen: { state: true },
-      _draftSeek: { state: true },
-      _draftVolume: { state: true },
-      _queueItems: { state: true },
-      _queueLoading: { state: true },
-      _queueAvailable: { state: true },
-      _now: { state: true },
-    };
-  }
-
-  static get styles() {
-    return cardStyles;
-  }
-
-  static async getConfigElement() {
-    return document.createElement(EDITOR_TAG);
-  }
-
-  static getStubConfig(hass) {
-    const firstEntity = Object.keys(hass.states || {}).find((entityId) =>
-      entityId.startsWith("media_player."),
-    );
-    return buildStubConfig(firstEntity);
-  }
-
-  constructor() {
-    super();
-    this.hass = undefined;
-    this._config = undefined;
-    this._selectedEntityId = undefined;
-    this._detailsOpen = false;
-    this._draftSeek = undefined;
-    this._draftVolume = undefined;
-    this._queueItems = [];
-    this._queueLoading = false;
-    this._queueAvailable = undefined;
-    this._now = Date.now();
-    this._progressTicker = undefined;
-    this._queueTicker = undefined;
-    this._lastQueueSignature = "";
-  }
-
-  setConfig(config) {
-    this._config = normalizeConfig(config);
-    this._detailsOpen = this._config.behavior.expanded_by_default;
-  }
-
-  getCardSize() {
-    return this._detailsOpen ? 7 : 3;
-  }
-
-  updated(changedProperties) {
-    if (!this._config) {
-      return;
-    }
-
-    if (changedProperties.has("hass") || changedProperties.has("_config")) {
-      const nextSelected = this._pickSelectedEntityId();
-      if (nextSelected && nextSelected !== this._selectedEntityId) {
-        this._selectedEntityId = nextSelected;
-        return;
-      }
-    }
-
-    if (changedProperties.has("_selectedEntityId")) {
-      this._draftSeek = undefined;
-      this._draftVolume = undefined;
-      this._queueAvailable = undefined;
-      this._queueItems = [];
-    }
-
-    this._syncProgressTicker();
-    this._syncQueueTicker();
-
-    const queueSignature = this._queueSignature();
-    if (queueSignature !== this._lastQueueSignature) {
-      this._lastQueueSignature = queueSignature;
-      this._refreshQueue();
-    }
-  }
-
-  disconnectedCallback() {
-    this._clearProgressTicker();
-    this._clearQueueTicker();
-    super.disconnectedCallback();
-  }
-
-  _t(key) {
-    return localize(key, this.hass, this._config ? this._config.language : "auto");
-  }
-
-  _entries() {
-    return this._config ? resolveEntries(this.hass, this._config.entities) : [];
-  }
-
-  _pickSelectedEntityId() {
-    const entries = this._entries();
-    if (!entries.length) {
-      return undefined;
-    }
-
-    const currentSelection = entries.find((entry) => entry.entityId === this._selectedEntityId);
-    const playingEntry = entries.find((entry) => isPlaying(entry.stateObj));
-    const activeEntry = entries.find((entry) => isSessionActive(entry.stateObj));
-
-    if (!currentSelection) {
-      return (
-        (playingEntry && playingEntry.entityId) ||
-        (activeEntry && activeEntry.entityId) ||
-        entries[0].entityId
-      );
-    }
-
-    if (
-      this._config.behavior.auto_select_active &&
-      isIdleLike(currentSelection.stateObj) &&
-      playingEntry
-    ) {
-      return playingEntry.entityId;
-    }
-
-    return currentSelection.entityId;
-  }
-
-  _activeEntry(entries) {
-    const resolved = entries || this._entries();
-    return resolved.find((entry) => entry.entityId === this._selectedEntityId) || resolved[0];
-  }
-
-  _queueSignature() {
-    const active = this._activeEntry();
-    if (
-      !this._config ||
-      !this._config.queue.enabled ||
-      !active ||
-      !active.playbackStateObj ||
-      !isSessionActive(active.playbackStateObj)
-    ) {
-      return "";
-    }
-    return [
-      active.playbackEntityId,
-      active.playbackStateObj.state,
-      active.playbackStateObj.attributes.media_content_id || "",
-      this._config.queue.limit,
-    ].join("|");
-  }
-
-  _syncProgressTicker() {
-    const active = this._activeEntry();
-    if (!active || !active.playbackStateObj || active.playbackStateObj.state !== "playing") {
-      this._clearProgressTicker();
-      return;
-    }
-    if (this._progressTicker) {
-      return;
-    }
-    this._progressTicker = window.setInterval(() => {
-      this._now = Date.now();
-    }, 1000);
-  }
-
-  _clearProgressTicker() {
-    if (this._progressTicker) {
-      window.clearInterval(this._progressTicker);
-      this._progressTicker = undefined;
-    }
-  }
-
-  _syncQueueTicker() {
-    const active = this._activeEntry();
-    if (
-      !this._config ||
-      !this._config.queue.enabled ||
-      this._queueAvailable === false ||
-      !active ||
-      !active.playbackStateObj ||
-      !isSessionActive(active.playbackStateObj)
-    ) {
-      this._clearQueueTicker();
-      return;
-    }
-    if (this._queueTicker) {
-      return;
-    }
-    this._queueTicker = window.setInterval(() => {
-      this._refreshQueue();
-    }, 15000);
-  }
-
-  _clearQueueTicker() {
-    if (this._queueTicker) {
-      window.clearInterval(this._queueTicker);
-      this._queueTicker = undefined;
-    }
-  }
-
-  async _refreshQueue() {
-    const active = this._activeEntry();
-    if (
-      !this.hass ||
-      !this._config ||
-      !this._config.queue.enabled ||
-      !active ||
-      !active.playbackStateObj ||
-      !isSessionActive(active.playbackStateObj)
-    ) {
-      this._queueItems = [];
-      this._queueLoading = false;
-      return;
-    }
-
-    if (this._queueAvailable === false) {
-      this._queueItems = [];
-      return;
-    }
-
-    this._queueLoading = true;
-    try {
-      const items = await fetchQueueItems(
-        this.hass,
-        active.playbackEntityId,
-        this._config.queue.limit,
-      );
-      const currentId = String(active.playbackStateObj.attributes.media_content_id || "");
-      this._queueAvailable = true;
-      this._queueItems = items.map((item) => ({
-        ...item,
-        playing: Boolean(item.playing) || String(item.media_content_id || "") === currentId,
-      }));
-    } catch (_error) {
-      this._queueAvailable = false;
-      this._queueItems = [];
-    } finally {
-      this._queueLoading = false;
-    }
-  }
-
-  _stateLabel(entry) {
-    const state = buildStateLabel(entry && entry.stateObj);
-    switch (state) {
-      case "playing":
-        return this._t("common.playing");
-      case "paused":
-        return this._t("common.paused");
-      case "idle":
-        return this._t("common.idle");
-      case "off":
-        return this._t("common.off");
-      case "standby":
-        return this._t("common.standby");
-      case "buffering":
-        return this._t("common.buffering");
-      case "unavailable":
-        return this._t("common.unavailable");
-      default:
-        return state || this._t("common.unknown");
-    }
-  }
-
-  _isHidden(entry, control) {
-    return Array.isArray(entry.config.hide_controls) && entry.config.hide_controls.includes(control);
-  }
-
-  _displayState(entry) {
-    return entry.playbackStateObj || entry.stateObj;
-  }
-
-  _deviceState(entry) {
-    return entry.deviceStateObj || entry.stateObj;
-  }
-
-  _sourceState(entry) {
-    return entry.sourceStateObj || this._deviceState(entry);
-  }
-
-  _groupState(entry) {
-    return entry.groupStateObj || this._displayState(entry);
-  }
-
-  _selectEntity(entityId) {
-    this._selectedEntityId = entityId;
-  }
-
-  _openMoreInfo(entityId) {
-    fireEvent(this, "hass-more-info", { entityId });
-  }
-
-  async _togglePower(entry) {
-    const deviceState = this._deviceState(entry);
-    if (!this.hass || !entry || !deviceState) {
-      return;
-    }
-    const service =
-      deviceState.state === "off" || deviceState.state === "standby"
-        ? "turn_on"
-        : "turn_off";
-    await this.hass.callService("media_player", service, { entity_id: entry.entityId });
-  }
-
-  async _togglePlayPause(entry) {
-    const playbackState = this._displayState(entry);
-    if (!this.hass || !entry || !playbackState) {
-      return;
-    }
-
-    if (playbackState.state === "playing" && supportsFeature(playbackState, FEATURE_PAUSE)) {
-      await this.hass.callService("media_player", "media_pause", {
-        entity_id: entry.playbackEntityId,
-      });
-      return;
-    }
-
-    if (supportsFeature(playbackState, FEATURE_PLAY)) {
-      await this.hass.callService("media_player", "media_play", {
-        entity_id: entry.playbackEntityId,
-      });
-      return;
-    }
-
-    await this.hass.callService("media_player", "media_play_pause", {
-      entity_id: entry.playbackEntityId,
-    });
-  }
-
-  async _previousTrack(entry) {
-    if (!this.hass) {
-      return;
-    }
-    await this.hass.callService("media_player", "media_previous_track", {
-      entity_id: entry.playbackEntityId,
-    });
-  }
-
-  async _nextTrack(entry) {
-    if (!this.hass) {
-      return;
-    }
-    await this.hass.callService("media_player", "media_next_track", {
-      entity_id: entry.playbackEntityId,
-    });
-  }
-
-  async _toggleMute(entry) {
-    if (!this.hass || !entry || !entry.volumeStateObj) {
-      return;
-    }
-    await this.hass.callService("media_player", "volume_mute", {
-      entity_id: entry.volumeStateObj.entity_id,
-      is_volume_muted: !Boolean(entry.volumeStateObj.attributes.is_volume_muted),
-    });
-  }
-
-  async _seek(entry, seconds) {
-    if (!this.hass) {
-      return;
-    }
-    await this.hass.callService("media_player", "media_seek", {
-      entity_id: entry.playbackEntityId,
-      seek_position: seconds,
-    });
-  }
-
-  async _setVolume(entry, volumePercent) {
-    if (!this.hass) {
-      return;
-    }
-    const target = (entry.volumeStateObj && entry.volumeStateObj.entity_id) || entry.entityId;
-    await this.hass.callService("media_player", "volume_set", {
-      entity_id: target,
-      volume_level: clamp(volumePercent / 100, 0, 1),
-    });
-  }
-
-  async _selectSource(entry, source) {
-    if (!this.hass) {
-      return;
-    }
-    await this.hass.callService("media_player", "select_source", {
-      entity_id: (this._sourceState(entry) && this._sourceState(entry).entity_id) || entry.entityId,
-      source,
-    });
-  }
-
-  async _toggleGroupMember(activeEntry, memberId) {
-    const groupState = this._groupState(activeEntry);
-    if (!this.hass || !activeEntry || !groupState || memberId === activeEntry.groupEntityId) {
-      return;
-    }
-    const groupMembers = normalizeGroupMembers(groupState);
-    if (groupMembers.includes(memberId)) {
-      await this.hass.callService("media_player", "unjoin", { entity_id: memberId });
-      return;
-    }
-    await this.hass.callService("media_player", "join", {
-      entity_id: activeEntry.groupEntityId,
-      group_members: [memberId],
-    });
-  }
-
-  async _ungroupAll(activeEntry) {
-    const groupState = this._groupState(activeEntry);
-    if (!this.hass || !activeEntry || !groupState) {
-      return;
-    }
-    const members = normalizeGroupMembers(groupState).filter(
-      (memberId) => memberId !== activeEntry.groupEntityId,
-    );
-    await Promise.all(
-      members.map((memberId) =>
-        this.hass.callService("media_player", "unjoin", { entity_id: memberId }),
-      ),
-    );
-  }
-
-  async _triggerFavorite(entry) {
-    if (!this.hass || !entry || !entry.config.favorite_service) {
-      return;
-    }
-    const parts = entry.config.favorite_service.split(".");
-    if (parts.length !== 2) {
-      return;
-    }
-    const data = interpolateTemplate(
-      entry.config.favorite_service_data || { entity_id: entry.playbackEntityId },
-      placeholderContext(this._displayState(entry)),
-    );
-    await this.hass.callService(parts[0], parts[1], data);
-  }
-
-  async _runShortcut(shortcut, activeEntry) {
-    if (!this.hass) {
-      return;
-    }
-
-    const entityId =
-      shortcut.entity && shortcut.entity !== "current"
-        ? shortcut.entity
-        : activeEntry.playbackEntityId;
-    const entity =
-      (this.hass.states && this.hass.states[entityId]) || this._displayState(activeEntry);
-    const context = placeholderContext(entity);
-
-    switch (shortcut.action) {
-      case "call-service": {
-        if (!shortcut.service) {
-          return;
-        }
-        const parts = shortcut.service.split(".");
-        if (parts.length !== 2) {
-          return;
-        }
-        const serviceData = interpolateTemplate(
-          shortcut.service_data || { entity_id: entityId },
-          context,
-        );
-        if (entityId && !("entity_id" in serviceData)) {
-          serviceData.entity_id = entityId;
-        }
-        await this.hass.callService(parts[0], parts[1], serviceData);
-        return;
-      }
-      case "navigate": {
-        const path = interpolateTemplate(shortcut.navigation_path || "", context);
-        if (!path) {
-          return;
-        }
-        window.history.pushState(null, "", path);
-        fireEvent(window, "location-changed", { replace: false });
-        return;
-      }
-      case "url": {
-        const url = interpolateTemplate(shortcut.url_path || "", context);
-        if (!url) {
-          return;
-        }
-        window.open(url, shortcut.new_tab ? "_blank" : "_self");
-        return;
-      }
-      case "more-info":
-        this._openMoreInfo(entityId);
-        return;
-      case "toggle":
-        await this.hass.callService(entityId.split(".")[0], "toggle", { entity_id: entityId });
-        return;
-      default:
-        return;
-    }
-  }
-
-  _renderIconButton(icon, label, onClick, className) {
-    return html`
-      <button class=${className || "icon-button"} title=${label} @click=${onClick}>
-        <ha-icon .icon=${icon}></ha-icon>
-      </button>
-    `;
-  }
-
-  _renderHeroProgress(active) {
-    const playbackState = this._displayState(active);
-    if (!playbackState) {
-      return html``;
-    }
-    const duration = Number(playbackState.attributes.media_duration || 0);
-    if (!duration) {
-      return html``;
-    }
-    const current = clamp(currentMediaPosition(playbackState, this._now), 0, duration);
-    const width = `${(current / duration) * 100}%`;
-    return html`
-      <div class="hero-progress">
-        <div class="hero-progress-track">
-          <div class="hero-progress-fill" style=${`width:${width};`}></div>
-        </div>
-        ${this._config.behavior.show_timestamps
-          ? html`
-              <div class="hero-times">
-                <span>${formatTime(current)}</span>
-                <span>${formatTime(duration)}</span>
-              </div>
-            `
-          : html``}
-      </div>
-    `;
-  }
-
-  _renderHeroTransport(active) {
-    const playbackState = this._displayState(active);
-    const deviceState = this._deviceState(active);
-    if (!playbackState && !deviceState) {
-      return html``;
-    }
-
-    const canPower =
-      !this._isHidden(active, "power") &&
-      !!deviceState &&
-      (supportsFeature(deviceState, FEATURE_TURN_ON) ||
-        supportsFeature(deviceState, FEATURE_TURN_OFF));
-    const canPrevious =
-      !this._isHidden(active, "previous") &&
-      !!playbackState &&
-      supportsFeature(playbackState, FEATURE_PREVIOUS_TRACK);
-    const canNext =
-      !this._isHidden(active, "next") &&
-      !!playbackState &&
-      supportsFeature(playbackState, FEATURE_NEXT_TRACK);
-    const canMute =
-      !this._isHidden(active, "mute") &&
-      !!active.volumeStateObj &&
-      supportsFeature(active.volumeStateObj, FEATURE_VOLUME_MUTE);
-    const playIcon = playbackState && playbackState.state === "playing" ? "mdi:pause" : "mdi:play";
-    const playLabel =
-      playbackState && playbackState.state === "playing"
-        ? this._t("common.pause")
-        : this._t("common.play");
-
-    return html`
-      <div class="hero-bottom">
-        <div class="hero-controls">
-          ${canPower
-            ? this._renderIconButton(
-                deviceState && (deviceState.state === "off" || deviceState.state === "standby")
-                  ? "mdi:power"
-                  : "mdi:power-standby",
-                this._t("common.power"),
-                () => this._togglePower(active),
-                "icon-button subtle small",
-              )
-            : html``}
-          ${canPrevious
-            ? this._renderIconButton(
-                "mdi:skip-previous",
-                this._t("common.previous"),
-                () => this._previousTrack(active),
-                "icon-button subtle small",
-              )
-            : html``}
-          ${playbackState
-            ? this._renderIconButton(
-                playIcon,
-                playLabel,
-                () => this._togglePlayPause(active),
-                "icon-button primary play-button",
-              )
-            : html``}
-          ${canNext
-            ? this._renderIconButton(
-                "mdi:skip-next",
-                this._t("common.next"),
-                () => this._nextTrack(active),
-                "icon-button subtle small",
-              )
-            : html``}
-          ${canMute
-            ? this._renderIconButton(
-                active.volumeStateObj.attributes.is_volume_muted
-                  ? "mdi:volume-off"
-                  : "mdi:volume-high",
-                active.volumeStateObj.attributes.is_volume_muted
-                  ? this._t("common.unmute")
-                  : this._t("common.mute"),
-                () => this._toggleMute(active),
-                "icon-button subtle small",
-              )
-            : html``}
-        </div>
-        <div class="hero-actions-inline">
-          ${active.config.favorite_service
-            ? this._renderIconButton(
-                "mdi:heart-outline",
-                this._t("common.favorite"),
-                () => this._triggerFavorite(active),
-                "icon-button subtle small",
-              )
-            : html``}
-          ${this._renderIconButton(
-            this._detailsOpen ? "mdi:chevron-up" : "mdi:chevron-down",
-            this._t("common.toggleDetails"),
-            () => {
-              this._detailsOpen = !this._detailsOpen;
-            },
-            "icon-button subtle small",
-          )}
-          ${this._renderIconButton(
-            "mdi:dots-horizontal",
-            this._t("common.moreInfo"),
-            () => this._openMoreInfo(active.playbackEntityId),
-            "icon-button subtle small",
-          )}
-        </div>
-      </div>
-    `;
-  }
-
-  _renderHero(active) {
-    const displayState = this._displayState(active);
-    const deviceState = this._deviceState(active);
-    const artwork = artworkForEntity(displayState, active.config.image);
-    const title = displayState ? mediaTitle(displayState) : active.config.name || active.entityId;
-    const subtitle = displayState
-      ? mediaSubtitle(displayState) || friendlyName(displayState, active.config.name)
-      : this._t("common.unavailable");
-    const supporting = displayState
-      ? mediaSupportingText(displayState) || friendlyName(deviceState, active.config.name)
-      : active.entityId;
-    const stateClass = `hero-chip state-${(displayState && displayState.state) || "unknown"}`;
-    const backdropStyle = artwork ? `background-image:url("${artwork}")` : "";
-    const blurClass = this._config.appearance.blur_background ? "hero-backdrop blur" : "hero-backdrop";
-    const entityLabel = active.config.name || friendlyName(deviceState, active.entityId);
-
-    return html`
-      <section class="hero">
-        ${artwork ? html`<div class=${blurClass} style=${backdropStyle}></div>` : html``}
-        <div class="hero-veil"></div>
-        <div class="hero-ghost">
-          ${artwork
-            ? html`<img class="hero-ghost-artwork" src=${artwork} alt="" />`
-            : html`
-                <ha-icon
-                  class="hero-ghost-icon"
-                  .icon=${iconForEntity(displayState, active.config.icon)}
-                ></ha-icon>
-              `}
-        </div>
-
-        <div class="hero-layout">
-          <button
-            class="artwork-button"
-            title=${this._t("common.moreInfo")}
-            @click=${() => this._openMoreInfo(active.playbackEntityId)}
-          >
-            ${artwork
-              ? html`
-                  <img
-                    src=${artwork}
-                    alt=${title}
-                    style=${`object-fit:${this._config.appearance.artwork_fit};`}
-                  />
-                `
-              : html`
-                  <div class="artwork-placeholder">
-                    <ha-icon .icon=${iconForEntity(displayState, active.config.icon)}></ha-icon>
-                  </div>
-                `}
-          </button>
-
-          <div class="hero-copy">
-            <div class="hero-topline">
-              <span class=${stateClass}>${this._stateLabel(active)}</span>
-              <span class="hero-chip">${entityLabel}</span>
-              ${active.displayOrigin === "music_assistant"
-                ? html`<span class="hero-chip accent">${this._t("common.musicAssistant")}</span>`
-                : html``}
-            </div>
-            <div class="hero-heading">
-              <div class="hero-heading-copy">
-                <h2 class="hero-title">${title}</h2>
-                <p class="hero-subtitle">${subtitle}</p>
-                <p class="hero-supporting">${supporting}</p>
-              </div>
-            </div>
-            ${this._renderHeroProgress(active)}
-            ${this._renderHeroTransport(active)}
-          </div>
-        </div>
-      </section>
-    `;
-  }
-
-  _renderEntityChips(entries, active) {
-    if (entries.length <= 1) {
-      return html``;
-    }
-
-    return html`
-      <div class="entity-row">
-        ${entries.map((entry) => {
-          const label =
-            entry.config.name ||
-            friendlyName(entry.deviceStateObj || entry.stateObj, entry.entityId);
-          return html`
-            <button
-              class=${classes({
-                "entity-chip": true,
-                selected: entry.entityId === active.entityId,
-                playing: isPlaying(entry.stateObj),
-              })}
-              title=${label}
-              @click=${() => this._selectEntity(entry.entityId)}
-            >
-              <ha-icon .icon=${iconForEntity(entry.stateObj, entry.config.icon)}></ha-icon>
-              <span class="chip-label">${label}</span>
-            </button>
-          `;
-        })}
-      </div>
-    `;
-  }
-
-  _renderProgress(active) {
-    if (!this._detailsOpen) {
-      return html``;
-    }
-    const playbackState = this._displayState(active);
-    if (
-      !playbackState ||
-      this._isHidden(active, "seek") ||
-      !this._config.behavior.enable_seek ||
-      !supportsFeature(playbackState, FEATURE_SEEK)
-    ) {
-      return html``;
-    }
-
-    const duration = Number(playbackState.attributes.media_duration || 0);
-    if (!duration) {
-      return html``;
-    }
-
-    const current = clamp(
-      this._draftSeek !== undefined
-        ? this._draftSeek
-        : currentMediaPosition(playbackState, this._now),
-      0,
-      duration,
-    );
-
-    return html`
-      <div class="slider-shell">
-        <div class="slider-header">
-          <strong>${this._t("common.seek")}</strong>
-          ${this._config.behavior.show_timestamps
-            ? html`
-                <div class="slider-values">
-                  <span>${formatTime(current)}</span>
-                  <span>${formatTime(duration)}</span>
-                </div>
-              `
-            : html``}
-        </div>
-        <input
-          type="range"
-          min="0"
-          max=${String(Math.floor(duration))}
-          step="1"
-          .value=${String(Math.floor(current))}
-          @input=${(event) => {
-            this._draftSeek = Number(event.currentTarget.value);
-          }}
-          @change=${(event) => this._seek(active, Number(event.currentTarget.value))}
-        />
-      </div>
-    `;
-  }
-
-  _renderTransport(active) {
-    if (!active.stateObj) {
-      return html``;
-    }
-
-    const canPower =
-      !this._isHidden(active, "power") &&
-      (supportsFeature(active.stateObj, FEATURE_TURN_ON) ||
-        supportsFeature(active.stateObj, FEATURE_TURN_OFF));
-    const canPrevious =
-      !this._isHidden(active, "previous") &&
-      supportsFeature(active.stateObj, FEATURE_PREVIOUS_TRACK);
-    const canNext =
-      !this._isHidden(active, "next") &&
-      supportsFeature(active.stateObj, FEATURE_NEXT_TRACK);
-    const canMute =
-      !this._isHidden(active, "mute") &&
-      active.volumeStateObj &&
-      supportsFeature(active.volumeStateObj, FEATURE_VOLUME_MUTE);
-
-    const playIcon = active.stateObj.state === "playing" ? "mdi:pause" : "mdi:play";
-    const playLabel =
-      active.stateObj.state === "playing" ? this._t("common.pause") : this._t("common.play");
-
-    return html`
-      <section class="transport-shell">
-        <div class="transport-header">
-          <div>
-            <h3>${this._t("common.activeEntity")}</h3>
-            <p>${friendlyName(active.stateObj, active.config.name)}</p>
-          </div>
-        </div>
-        <div class="transport-main">
-          <div class="transport-side">
-            ${canPower
-              ? this._renderIconButton(
-                  active.stateObj.state === "off" || active.stateObj.state === "standby"
-                    ? "mdi:power"
-                    : "mdi:power-standby",
-                  this._t("common.power"),
-                  () => this._togglePower(active),
-                  "icon-button",
-                )
-              : html``}
-          </div>
-          <div class="transport-controls">
-            ${canPrevious
-              ? this._renderIconButton(
-                  "mdi:skip-previous",
-                  this._t("common.previous"),
-                  () => this._previousTrack(active),
-                  "icon-button",
-                )
-              : html``}
-            ${this._renderIconButton(
-              playIcon,
-              playLabel,
-              () => this._togglePlayPause(active),
-              "icon-button primary play-button",
-            )}
-            ${canNext
-              ? this._renderIconButton(
-                  "mdi:skip-next",
-                  this._t("common.next"),
-                  () => this._nextTrack(active),
-                  "icon-button",
-                )
-              : html``}
-          </div>
-          <div class="transport-side">
-            ${canMute
-              ? this._renderIconButton(
-                  active.volumeStateObj.attributes.is_volume_muted
-                    ? "mdi:volume-off"
-                    : "mdi:volume-high",
-                  active.volumeStateObj.attributes.is_volume_muted
-                    ? this._t("common.unmute")
-                    : this._t("common.mute"),
-                  () => this._toggleMute(active),
-                  "icon-button",
-                )
-              : html``}
-          </div>
-        </div>
-      </section>
-    `;
-  }
-
-  _renderVolume(active) {
-    if (!this._detailsOpen) {
-      return html``;
-    }
-    const volumeEntity = active.volumeStateObj;
-    if (
-      !this._config.behavior.show_volume ||
-      !volumeEntity ||
-      this._isHidden(active, "volume") ||
-      !supportsFeature(volumeEntity, FEATURE_VOLUME_SET)
-    ) {
-      return html``;
-    }
-
-    const value = clamp(
-      this._draftVolume !== undefined
-        ? this._draftVolume
-        : Math.round(Number(volumeEntity.attributes.volume_level || 0) * 100),
-      0,
-      100,
-    );
-
-    return html`
-      <div class="slider-shell">
-        <div class="slider-header">
-          <strong>${this._t("common.volume")}</strong>
-          <div class="slider-values">
-            <span>${value}%</span>
-          </div>
-        </div>
-        <input
-          type="range"
-          min="0"
-          max="100"
-          step="1"
-          .value=${String(value)}
-          @input=${(event) => {
-            this._draftVolume = Number(event.currentTarget.value);
-          }}
-          @change=${(event) => this._setVolume(active, Number(event.currentTarget.value))}
-        />
-      </div>
-    `;
-  }
-
-  _renderSources(active) {
-    const sourceState = this._sourceState(active);
-    const sources = sourceState ? sourceState.attributes.source_list : undefined;
-    if (
-      !this._config.behavior.show_sources ||
-      !sourceState ||
-      this._isHidden(active, "source") ||
-      !supportsFeature(sourceState, FEATURE_SELECT_SOURCE) ||
-      !Array.isArray(sources) ||
-      !sources.length
-    ) {
-      return html``;
-    }
-
-    return html`
-      <section class="section">
-        <div class="section-header">
-          <div>
-            <h3>${this._t("common.sources")}</h3>
-            <p>${this._t("common.currentSource")}: ${String(sourceState.attributes.source || "-")}</p>
-          </div>
-        </div>
-        <div class="source-row">
-          ${sources.map(
-            (source) => html`
-              <button
-                class=${classes({
-                  "source-chip": true,
-                  selected: source === sourceState.attributes.source,
-                })}
-                @click=${() => this._selectSource(active, source)}
-              >
-                <span class="source-label">${source}</span>
-              </button>
-            `,
-          )}
-        </div>
-      </section>
-    `;
-  }
-
-  _renderShortcuts(active) {
-    if (!this._detailsOpen) {
-      return html``;
-    }
-    const shortcuts = this._config.actions.filter((shortcut) =>
-      visibilityMatches(shortcut.visibility, this._displayState(active)),
-    );
-    if (!shortcuts.length) {
-      return html``;
-    }
-
-    return html`
-      <section class="section">
-        <div class="section-header">
-          <div>
-            <h3>${this._t("common.shortcuts")}</h3>
-          </div>
-        </div>
-        <div class="shortcut-row">
-          ${shortcuts.map(
-            (shortcut) => html`
-              <button class="action-chip" @click=${() => this._runShortcut(shortcut, active)}>
-                ${shortcut.icon ? html`<ha-icon .icon=${shortcut.icon}></ha-icon>` : html``}
-                <span class="action-label">${shortcut.label}</span>
-              </button>
-            `,
-          )}
-        </div>
-      </section>
-    `;
-  }
-
-  _renderGroupControls(entries, active) {
-    const groupState = this._groupState(active);
-    if (!this._config.behavior.show_group_controls || !groupState || entries.length <= 1) {
-      return html``;
-    }
-
-    const groupedPlayers = normalizeGroupMembers(groupState);
-    const canGroup = supportsFeature(groupState, FEATURE_GROUPING) || groupedPlayers.length > 1;
-    if (!canGroup) {
-      return html``;
-    }
-
-    return html`
-      <section class="section">
-        <div class="section-header">
-          <div>
-            <h3>${this._t("common.group")}</h3>
-            <p>${this._t("common.groupedPlayers")}: ${groupedPlayers.length}</p>
-          </div>
-          ${groupedPlayers.length > 1
-            ? html`
-                <button class="queue-clear" @click=${() => this._ungroupAll(active)}>
-                  ${this._t("common.ungroupAll")}
-                </button>
-              `
-            : html``}
-        </div>
-        <div class="group-row">
-          ${entries.map((entry) => {
-            const joined = groupedPlayers.includes(entry.entityId);
-            const label = entry.config.name || friendlyName(entry.stateObj, entry.entityId);
-            return html`
-              <button
-                class=${classes({
-                  "group-chip": true,
-                  joined,
-                  selected: entry.entityId === active.entityId,
-                })}
-                @click=${() => this._toggleGroupMember(active, entry.entityId)}
-              >
-                <ha-icon .icon=${iconForEntity(entry.stateObj, entry.config.icon)}></ha-icon>
-                <span class="group-label">${label}</span>
-              </button>
-            `;
-          })}
-        </div>
-      </section>
-    `;
-  }
-
-  _renderQueue(active) {
-    if (!this._config.queue.enabled || !this._detailsOpen || this._queueAvailable === false) {
-      return html``;
-    }
-
-    if (!this._queueLoading && !this._queueItems.length) {
-      return html``;
-    }
-
-    return html`
-      <section class="section">
-        <div class="section-header">
-          <div>
-            <h3>${this._t("common.queue")}</h3>
-            <p>${this._t("common.queueSoon")}</p>
-          </div>
-          ${this._queueItems.length
-            ? html`
-                <button
-                  class="queue-clear"
-                  @click=${async () => {
-                    if (!this.hass) {
-                      return;
-                    }
-                    await clearQueue(this.hass, active.playbackEntityId);
-                    await this._refreshQueue();
-                  }}
-                >
-                  ${this._t("common.clear")}
-                </button>
-              `
-            : html``}
-        </div>
-        ${this._queueLoading ? html`<div class="queue-loading">${this._t("common.loading")}</div>` : html``}
-        <div class="queue-list">
-          ${this._queueItems.length
-            ? this._queueItems.map(
-                (item) => html`
-                  <div class=${classes({ "queue-row": true, playing: Boolean(item.playing) })}>
-                    <button
-                      class="queue-item-main"
-                      title=${this._t("common.openQueueItem")}
-                      @click=${() =>
-                        this.hass &&
-                        item.queue_item_id &&
-                        playQueueItem(this.hass, active.playbackEntityId, item.queue_item_id)}
-                    >
-                      <div class="queue-thumb">
-                        ${queueItemImage(item)
-                          ? html`<img src=${queueItemImage(item)} alt=${queueItemTitle(item)} />`
-                          : html`
-                              <div class="artwork-placeholder">
-                                <ha-icon icon="mdi:music"></ha-icon>
-                              </div>
-                            `}
-                      </div>
-                      <div class="queue-meta">
-                        <span class="queue-title">${queueItemTitle(item)}</span>
-                        <span class="queue-subtitle">${queueItemSubtitle(item)}</span>
-                      </div>
-                    </button>
-                    ${item.queue_item_id && this.hass
-                      ? this._renderIconButton(
-                          "mdi:close",
-                          this._t("common.remove"),
-                          async () => {
-                            await removeQueueItem(
-                              this.hass,
-                              active.playbackEntityId,
-                              item.queue_item_id,
-                            );
-                            await this._refreshQueue();
-                          },
-                          "icon-button",
-                        )
-                      : html``}
-                  </div>
-                `,
-              )
-            : html`<div class="queue-empty">${this._t("common.noQueue")}</div>`}
-        </div>
-      </section>
-    `;
-  }
-
-  _renderDetails(active) {
-    const displayState = this._displayState(active);
-    const deviceState = this._deviceState(active);
-    if (!this._config.behavior.show_details || !this._detailsOpen || !displayState) {
-      return html``;
-    }
-
-    const details = [
-      {
-        label: this._t("common.device"),
-        value: active.config.name || friendlyName(deviceState, active.entityId),
-      },
-      {
-        label: this._t("common.sourceEntity"),
-        value:
-          active.displayOrigin === "music_assistant"
-            ? this._t("common.musicAssistant")
-            : this._t("common.device"),
-      },
-      { label: this._t("common.state"), value: this._stateLabel(active) },
-      { label: this._t("common.artist"), value: String(displayState.attributes.media_artist || "") },
-      { label: this._t("common.album"), value: String(displayState.attributes.media_album_name || "") },
-      {
-        label: this._t("common.currentSource"),
-        value: String((this._sourceState(active) && this._sourceState(active).attributes.source) || ""),
-      },
-      { label: this._t("common.app"), value: String(displayState.attributes.app_name || "") },
-      {
-        label: this._t("common.soundMode"),
-        value: String((this._sourceState(active) && this._sourceState(active).attributes.sound_mode) || ""),
-      },
-    ].filter((item) => item.value);
-
-    if (!details.length) {
-      return html``;
-    }
-
-    return html`
-      <section class="section">
-        <div class="section-header">
-          <div>
-            <h3>${this._t("common.details")}</h3>
-          </div>
-        </div>
-        <div class="detail-grid">
-          ${details.map(
-            (item) => html`
-              <div class="detail-card">
-                <span class="detail-label">${item.label}</span>
-                <span class="detail-value">${item.value}</span>
-              </div>
-            `,
-          )}
-        </div>
-      </section>
-    `;
-  }
-
-  render() {
-    if (!this._config) {
-      return html`
-        <ha-card>
-          <div class="notice">${this._t("common.configure")}</div>
-        </ha-card>
-      `;
-    }
-
-    const entries = this._entries();
-    const active = this._activeEntry(entries);
-
-    if (!active) {
-      return html`
-        <ha-card>
-          <div class="notice">${this._t("common.noEntities")}</div>
-        </ha-card>
-      `;
-    }
-
-    const collapsed = this._config.behavior.collapse_when_idle && isIdleLike(active.stateObj);
-    const accent =
-      active.config.accent_color &&
-      active.config.accent_color !== LEGACY_DEFAULT_ACCENT
-        ? active.config.accent_color
-        : this._config.appearance.accent_color;
-    const theme =
-      this._config.appearance.theme === "auto"
-        ? this.hass && this.hass.themes && this.hass.themes.darkMode
-          ? "dark"
-          : "light"
-        : this._config.appearance.theme;
-    const cardClass = classes({
-      collapsed,
-      "theme-dark": theme === "dark",
-      "theme-light": theme === "light",
-    });
-
-    return html`
-      <ha-card class=${cardClass} style=${`--nodalia-accent:${accent};`}>
-        <div class=${classes({ shell: true, collapsed })}>
-          ${this._renderHero(active)}
-          ${this._renderEntityChips(entries, active)}
-          ${this._renderProgress(active)}
-          ${this._renderVolume(active)}
-          ${this._renderShortcuts(active)}
-          ${collapsed || !this._detailsOpen ? html`` : this._renderSources(active)}
-          ${collapsed || !this._detailsOpen ? html`` : this._renderGroupControls(entries, active)}
-          ${collapsed ? html`` : this._renderQueue(active)}
-          ${collapsed ? html`` : this._renderDetails(active)}
-        </div>
-      </ha-card>
-    `;
-  }
+if (!customElements.get(CARD_TAG)) {
+  customElements.define(CARD_TAG, NodaliaMediaPlayer);
 }
 
 window.customCards = window.customCards || [];
 window.customCards.push({
   type: CARD_TAG,
   name: "Nodalia Media Player",
-  description:
-    "Mushroom-inspired media player card with multi-entity control, quick grouping, optional queue, and translations.",
+  description: "Media player flotante y compacto con estetica Nodalia.",
   preview: true,
 });
-
-if (!customElements.get(EDITOR_TAG)) {
-  customElements.define(EDITOR_TAG, NodaliaMediaPlayerEditor);
-}
-
-if (!customElements.get(CARD_TAG)) {
-  customElements.define(CARD_TAG, NodaliaMediaPlayer);
-}
