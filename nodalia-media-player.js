@@ -99,18 +99,18 @@ const DEFAULT_CONFIG = {
     player: {
       background: "var(--ha-card-background)",
       border: "1px solid var(--divider-color)",
-      border_radius: "30px",
+      border_radius: "28px",
       box_shadow: "var(--ha-card-box-shadow)",
-      padding: "16px",
-      min_height: "178px",
-      artwork_size: "82px",
-      control_size: "44px",
-      title_size: "16px",
-      subtitle_size: "13px",
+      padding: "14px",
+      min_height: "160px",
+      artwork_size: "72px",
+      control_size: "38px",
+      title_size: "15px",
+      subtitle_size: "12px",
       progress_color: "var(--primary-color)",
       progress_background: "rgba(var(--rgb-primary-color), 0.14)",
       overlay_color: "rgba(0, 0, 0, 0.32)",
-      dot_size: "8px",
+      dot_size: "7px",
       accent_color: "var(--primary-text-color)",
       accent_background: "rgba(var(--rgb-primary-color), 0.18)",
     },
@@ -237,6 +237,14 @@ function arrayFromCsv(value) {
     .split(",")
     .map(item => item.trim())
     .filter(Boolean);
+}
+
+function escapeSelectorValue(value) {
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+    return CSS.escape(String(value));
+  }
+
+  return String(value).replaceAll('"', '\\"');
 }
 
 function moveItem(array, fromIndex, toIndex) {
@@ -1669,9 +1677,9 @@ class NodaliaMediaPlayer extends HTMLElement {
         .media-player__progress {
           background: ${playerStyles.progress_background};
           border-radius: 999px;
-          bottom: 10px;
+          bottom: 8px;
           height: 6px;
-          inset-inline: 14px;
+          inset-inline: 12px;
           overflow: hidden;
           position: absolute;
           z-index: 1;
@@ -1692,22 +1700,22 @@ class NodaliaMediaPlayer extends HTMLElement {
         .media-player__content {
           align-content: start;
           display: grid;
-          gap: 14px;
-          padding-bottom: 12px;
+          gap: 12px;
+          padding-bottom: 10px;
         }
 
         .media-player__topline {
           display: flex;
           justify-content: center;
-          min-height: 28px;
-          padding-inline: 42px;
+          min-height: 26px;
+          padding-inline: 38px;
           width: 100%;
         }
 
         .media-player__hero {
           align-items: start;
           display: grid;
-          gap: 14px;
+          gap: 12px;
           grid-template-columns: ${playerStyles.artwork_size} minmax(0, 1fr);
           padding-right: clamp(52px, 24vw, 168px);
         }
@@ -1739,7 +1747,7 @@ class NodaliaMediaPlayer extends HTMLElement {
 
         .media-player__meta {
           display: grid;
-          gap: 4px;
+          gap: 3px;
           min-width: 0;
         }
 
@@ -1763,7 +1771,7 @@ class NodaliaMediaPlayer extends HTMLElement {
 
         .media-player__center-stack {
           display: grid;
-          gap: 12px;
+          gap: 10px;
           justify-items: center;
         }
 
@@ -1780,7 +1788,7 @@ class NodaliaMediaPlayer extends HTMLElement {
           pointer-events: none;
           position: absolute;
           right: 14px;
-          top: 48px;
+          top: 42px;
           z-index: 2;
         }
 
@@ -1802,7 +1810,7 @@ class NodaliaMediaPlayer extends HTMLElement {
         .media-player__transport-cluster {
           align-items: center;
           display: inline-flex;
-          gap: 10px;
+          gap: 8px;
           justify-content: center;
           width: auto;
         }
@@ -1810,7 +1818,7 @@ class NodaliaMediaPlayer extends HTMLElement {
         .media-player__transport-addon {
           align-items: center;
           display: inline-flex;
-          left: calc(100% + 10px);
+          left: calc(100% + 8px);
           position: absolute;
           top: 50%;
           transform: translateY(-50%);
@@ -1823,16 +1831,16 @@ class NodaliaMediaPlayer extends HTMLElement {
           border-radius: 999px;
           box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
           display: inline-flex;
-          gap: 8px;
+          gap: 6px;
           margin: 0 auto;
-          padding: 6px;
+          padding: 5px;
         }
 
         .media-player__footer {
           align-items: center;
           display: flex;
           flex-wrap: wrap;
-          gap: 10px;
+          gap: 8px;
           justify-content: center;
         }
 
@@ -1840,7 +1848,7 @@ class NodaliaMediaPlayer extends HTMLElement {
           align-items: center;
           display: flex;
           flex-wrap: wrap;
-          gap: 8px;
+          gap: 6px;
           justify-content: center;
           min-width: 0;
         }
@@ -1862,9 +1870,9 @@ class NodaliaMediaPlayer extends HTMLElement {
           font-weight: 600;
           line-height: 1;
           max-width: 100%;
-          min-height: 28px;
+          min-height: 26px;
           overflow: hidden;
-          padding: 0 10px;
+          padding: 0 9px;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
@@ -1921,32 +1929,18 @@ class NodaliaMediaPlayer extends HTMLElement {
           background: ${playerStyles.accent_background};
           border-color: rgba(var(--rgb-primary-color), 0.24);
           color: ${playerStyles.accent_color};
-          height: calc(${playerStyles.control_size} + 6px);
-          width: calc(${playerStyles.control_size} + 6px);
+          height: calc(${playerStyles.control_size} + 4px);
+          width: calc(${playerStyles.control_size} + 4px);
         }
 
         .media-player__volume-button {
           flex: 0 0 auto;
-          height: calc(${playerStyles.control_size} - 4px);
+          height: calc(${playerStyles.control_size} - 2px);
           padding: 0;
-          width: calc(${playerStyles.control_size} - 4px);
+          width: calc(${playerStyles.control_size} - 2px);
         }
 
         .media-player__control ha-icon {
-          align-items: center;
-          display: inline-flex;
-          font-size: 22px;
-          height: 22px;
-          justify-content: center;
-          left: 50%;
-          line-height: 1;
-          position: absolute;
-          top: 50%;
-          transform: translate(-50%, -50%);
-          width: 22px;
-        }
-
-        .media-player__volume-button ha-icon {
           align-items: center;
           display: inline-flex;
           font-size: 20px;
@@ -1960,6 +1954,20 @@ class NodaliaMediaPlayer extends HTMLElement {
           width: 20px;
         }
 
+        .media-player__volume-button ha-icon {
+          align-items: center;
+          display: inline-flex;
+          font-size: 18px;
+          height: 18px;
+          justify-content: center;
+          left: 50%;
+          line-height: 1;
+          position: absolute;
+          top: 50%;
+          transform: translate(-50%, -50%);
+          width: 18px;
+        }
+
         .media-player__dots {
           background: rgba(255, 255, 255, 0.05);
           border: 1px solid rgba(255, 255, 255, 0.06);
@@ -1968,7 +1976,7 @@ class NodaliaMediaPlayer extends HTMLElement {
           display: inline-flex;
           gap: 4px;
           justify-content: center;
-          padding: 4px;
+          padding: 3px;
         }
 
         .media-player__dot {
@@ -1979,11 +1987,11 @@ class NodaliaMediaPlayer extends HTMLElement {
           border-radius: 999px;
           cursor: pointer;
           display: inline-flex;
-          height: 28px;
+          height: 24px;
           justify-content: center;
           padding: 0;
           position: relative;
-          width: 28px;
+          width: 24px;
         }
 
         .media-player__dot::before {
@@ -2216,11 +2224,87 @@ class NodaliaMediaPlayerEditor extends HTMLElement {
   }
 
   setConfig(config) {
+    const focusState = this._captureFocusState();
     this._config = normalizeConfig(config || {});
     this._render();
+    this._restoreFocusState(focusState);
+  }
+
+  _captureFocusState() {
+    const activeElement = this.shadowRoot?.activeElement;
+
+    if (
+      !(
+        activeElement instanceof HTMLInputElement ||
+        activeElement instanceof HTMLTextAreaElement ||
+        activeElement instanceof HTMLSelectElement
+      )
+    ) {
+      return null;
+    }
+
+    const dataset = activeElement.dataset || {};
+    const selector = dataset.field
+      ? `[data-field="${escapeSelectorValue(dataset.field)}"]`
+      : null;
+
+    if (!selector) {
+      return null;
+    }
+
+    const supportsSelection =
+      typeof activeElement.selectionStart === "number" &&
+      typeof activeElement.selectionEnd === "number";
+
+    return {
+      selector,
+      selectionEnd: supportsSelection ? activeElement.selectionEnd : null,
+      selectionStart: supportsSelection ? activeElement.selectionStart : null,
+      type: activeElement.type,
+    };
+  }
+
+  _restoreFocusState(focusState) {
+    if (!focusState?.selector || !this.shadowRoot) {
+      return;
+    }
+
+    const target = this.shadowRoot.querySelector(focusState.selector);
+    if (
+      !(
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement
+      )
+    ) {
+      return;
+    }
+
+    try {
+      target.focus({ preventScroll: true });
+    } catch (_error) {
+      target.focus();
+    }
+
+    const canRestoreSelection =
+      focusState.type !== "checkbox" &&
+      typeof focusState.selectionStart === "number" &&
+      typeof focusState.selectionEnd === "number" &&
+      typeof target.setSelectionRange === "function";
+
+    if (!canRestoreSelection) {
+      return;
+    }
+
+    try {
+      target.setSelectionRange(focusState.selectionStart, focusState.selectionEnd);
+    } catch (_error) {
+      // Ignore inputs that do not support selection ranges.
+    }
   }
 
   _emitConfig() {
+    const focusState = this._captureFocusState();
     const nextConfig = deepClone(this._config);
 
     if (!Array.isArray(nextConfig.players)) {
@@ -2228,9 +2312,16 @@ class NodaliaMediaPlayerEditor extends HTMLElement {
     }
 
     delete nextConfig.entity;
+    this._config = normalizeConfig(compactConfig(nextConfig));
+    this._render();
+    this._restoreFocusState(focusState);
     fireEvent(this, "config-changed", {
       config: compactConfig(nextConfig),
     });
+  }
+
+  _setEditorConfig() {
+    this._config = normalizeConfig(compactConfig(this._config));
   }
 
   _setFieldValue(path, value) {
@@ -2287,7 +2378,11 @@ class NodaliaMediaPlayerEditor extends HTMLElement {
 
     const nextValue = this._readFieldValue(input);
     this._setFieldValue(input.dataset.field, nextValue);
-    this._emitConfig();
+    this._setEditorConfig();
+
+    if (event.type === "change") {
+      this._emitConfig();
+    }
   }
 
   _onShadowClick(event) {
@@ -2311,7 +2406,6 @@ class NodaliaMediaPlayerEditor extends HTMLElement {
         label: "",
       });
       this._emitConfig();
-      this._render();
       return;
     }
 
@@ -2322,21 +2416,18 @@ class NodaliaMediaPlayerEditor extends HTMLElement {
     if (action === "remove-player") {
       this._config.players.splice(index, 1);
       this._emitConfig();
-      this._render();
       return;
     }
 
     if (action === "move-player-up") {
       moveItem(this._config.players, index, index - 1);
       this._emitConfig();
-      this._render();
       return;
     }
 
     if (action === "move-player-down") {
       moveItem(this._config.players, index, index + 1);
       this._emitConfig();
-      this._render();
     }
   }
 
