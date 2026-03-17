@@ -359,8 +359,8 @@ class NodaliaMediaPlayer extends HTMLElement {
         },
       ],
       layout: {
-        fixed: true,
-        reserve_space: true,
+        fixed: false,
+        reserve_space: false,
       },
     };
   }
@@ -1572,16 +1572,20 @@ class NodaliaMediaPlayer extends HTMLElement {
         }
 
         .dock {
-          position: ${isFixed ? "fixed" : "relative"};
-          left: ${config.layout.side_margin};
-          right: ${config.layout.side_margin};
-          ${config.layout.position === "top" ? `top: ${config.layout.offset};` : `bottom: ${config.layout.offset};`}
-          z-index: ${config.layout.z_index};
-          pointer-events: none;
+          position: ${isFixed ? "fixed" : "static"};
+          left: ${isFixed ? config.layout.side_margin : "auto"};
+          right: ${isFixed ? config.layout.side_margin : "auto"};
+          ${isFixed
+            ? config.layout.position === "top"
+              ? `top: ${config.layout.offset};`
+              : `bottom: ${config.layout.offset};`
+            : "top: auto; bottom: auto;"}
+          z-index: ${isFixed ? config.layout.z_index : "auto"};
+          pointer-events: ${isFixed ? "none" : "auto"};
         }
 
         .dock-inner {
-          margin: 0 auto;
+          margin: ${isFixed ? "0 auto" : "0"};
           max-width: ${config.layout.max_width};
           pointer-events: auto;
           width: 100%;
