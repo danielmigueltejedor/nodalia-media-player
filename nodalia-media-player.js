@@ -2444,6 +2444,7 @@ class NodaliaMediaPlayerEditor extends HTMLElement {
     this.attachShadow({ mode: "open" });
     this._config = normalizeConfig(NodaliaMediaPlayer.getStubConfig());
     this._hass = null;
+    this._entityOptionsSignature = "";
     this._onShadowInput = this._onShadowInput.bind(this);
     this._onShadowClick = this._onShadowClick.bind(this);
     this.shadowRoot.addEventListener("input", this._onShadowInput);
@@ -2452,8 +2453,22 @@ class NodaliaMediaPlayerEditor extends HTMLElement {
   }
 
   set hass(hass) {
+    const nextSignature = this._getEntityOptionsSignature(hass);
+    const shouldRender =
+      !this._hass ||
+      nextSignature !== this._entityOptionsSignature ||
+      !this.shadowRoot?.innerHTML;
+
     this._hass = hass;
+    this._entityOptionsSignature = nextSignature;
+
+    if (!shouldRender) {
+      return;
+    }
+
+    const focusState = this._captureFocusState();
     this._render();
+    this._restoreFocusState(focusState);
   }
 
   setConfig(config) {
@@ -2495,6 +2510,13 @@ class NodaliaMediaPlayerEditor extends HTMLElement {
       selectionStart: supportsSelection ? activeElement.selectionStart : null,
       type: activeElement.type,
     };
+  }
+
+  _getEntityOptionsSignature(hass = this._hass) {
+    return Object.keys(hass?.states || {})
+      .filter(entityId => entityId.startsWith("media_player."))
+      .sort((left, right) => left.localeCompare(right, "es"))
+      .join("|");
   }
 
   _restoreFocusState(focusState) {
